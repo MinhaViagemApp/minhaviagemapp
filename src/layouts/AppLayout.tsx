@@ -36,7 +36,7 @@ export default function AppLayout({ requiredRole }: AppLayoutProps) {
               <Button variant="ghost" size="icon" className="text-muted-foreground">
                 <Bell className="h-5 w-5" />
               </Button>
-              <div className="h-8 w-8 rounded-full gradient-accent flex items-center justify-center text-xs font-bold text-accent-foreground">
+              <div className="h-8 w-8 rounded-full gradient-primary flex items-center justify-center text-xs font-bold text-primary-foreground">
                 {user.email?.charAt(0).toUpperCase()}
               </div>
             </div>

@@ -60,10 +60,10 @@ export default function Register() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md glass-strong animate-fade-in">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto h-14 w-14 rounded-2xl gradient-accent flex items-center justify-center mb-2">
+          <div className="mx-auto h-14 w-14 rounded-2xl gradient-primary flex items-center justify-center mb-2">
             <Plane className="h-7 w-7 text-accent-foreground" />
           </div>
-          <CardTitle className="text-2xl gradient-accent-text">TripSync</CardTitle>
+          <CardTitle className="text-2xl gradient-accent-text">Minha Viagem App</CardTitle>
           <CardDescription>Crie sua conta</CardDescription>
         </CardHeader>
         <CardContent>
@@ -116,13 +116,13 @@ export default function Register() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full gradient-accent" disabled={loading}>
+            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
               {loading ? "Criando..." : "Criar conta"}
             </Button>
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">
             Já tem conta?{" "}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link to="/login" className="text-accent hover:underline">
               Entrar
             </Link>
           </p>
