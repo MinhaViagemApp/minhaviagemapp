@@ -27,44 +27,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   const fetchUserRole = async (userId: string) => {
-    try {
-      const { data } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId)
-        .single();
-      return data?.role || null;
-    } catch {
-      return null;
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    return data?.role || null;
+  };
+
+  const ensureProfileAndRole = async (currentUser: User) => {
+    const fallbackRole = currentUser.user_metadata?.role === "admin" ? "admin" : "cliente";
+
+    await supabase.from("profiles").upsert({
+      id: currentUser.id,
+      email: currentUser.email ?? null,
+      name: currentUser.user_metadata?.name ?? null,
+    });
+
+    let role = await fetchUserRole(currentUser.id);
+
+    if (!role) {
+      const { error } = await supabase.from("user_roles").upsert(
+        { user_id: currentUser.id, role: fallbackRole },
+        { onConflict: "user_id,role" }
+      );
+
+      role = error ? null : fallbackRole;
     }
+
+    setUserRole(role);
   };
 
   useEffect(() => {
-    // First restore session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const role = await fetchUserRole(session.user.id);
-        setUserRole(role);
+    const syncAuthState = async (nextSession: Session | null) => {
+      setLoading(true);
+      setSession(nextSession);
+      setUser(nextSession?.user ?? null);
+
+      if (nextSession?.user) {
+        await ensureProfileAndRole(nextSession.user);
+      } else {
+        setUserRole(null);
       }
+
       setLoading(false);
+    };
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      void syncAuthState(session);
     });
 
-    // Then listen for changes (no await inside callback)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          // Fire and forget - no await
-          fetchUserRole(session.user.id).then(role => setUserRole(role));
-        } else {
-          setUserRole(null);
-        }
-        setLoading(false);
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      void syncAuthState(nextSession);
+    });
 
     return () => subscription.unsubscribe();
   }, []);
