@@ -63,7 +63,7 @@ export default function Register() {
           <div className="mx-auto h-14 w-14 rounded-2xl gradient-accent flex items-center justify-center mb-2">
             <Plane className="h-7 w-7 text-accent-foreground" />
           </div>
-          <CardTitle className="text-2xl gradient-accent-text">TripSync</CardTitle>
+          <CardTitle className="text-2xl gradient-accent-text">Minha Viagem App</CardTitle>
           <CardDescription>Crie sua conta</CardDescription>
         </CardHeader>
         <CardContent>

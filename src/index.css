@@ -4,44 +4,44 @@
 
 @layer base {
   :root {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
+    --background: 220 20% 7%;
+    --foreground: 0 0% 100%;
 
-    --card: 222 47% 9%;
-    --card-foreground: 210 40% 98%;
+    --card: 220 20% 10%;
+    --card-foreground: 0 0% 100%;
 
-    --popover: 222 47% 9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 220 20% 10%;
+    --popover-foreground: 0 0% 100%;
 
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 6%;
+    --primary: 22 100% 50%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 20% 14%;
+    --secondary-foreground: 0 0% 100%;
 
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 20% 55%;
+    --muted: 220 20% 14%;
+    --muted-foreground: 220 10% 55%;
 
-    --accent: 18 99% 50%;
+    --accent: 217 91% 60%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 222 30% 18%;
-    --input: 222 30% 18%;
-    --ring: 217 91% 60%;
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 22 100% 50%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 222 47% 8%;
-    --sidebar-foreground: 210 40% 90%;
-    --sidebar-primary: 217 91% 60%;
+    --sidebar-background: 220 20% 8%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 22 100% 50%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 18 99% 50%;
+    --sidebar-accent: 217 91% 60%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 222 30% 16%;
-    --sidebar-ring: 217 91% 60%;
+    --sidebar-border: 220 20% 16%;
+    --sidebar-ring: 22 100% 50%;
   }
 }
 
@@ -64,12 +64,23 @@
     @apply bg-card/80 backdrop-blur-2xl border border-border/60 shadow-xl;
   }
 
+  .gradient-primary {
+    background: linear-gradient(135deg, hsl(22 100% 50%), hsl(30 100% 60%));
+  }
+
+  .gradient-primary-text {
+    background: linear-gradient(135deg, hsl(22 100% 50%), hsl(30 100% 60%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
   .gradient-accent {
-    background: linear-gradient(135deg, hsl(217 91% 60%), hsl(18 99% 50%));
+    background: linear-gradient(135deg, hsl(22 100% 50%), hsl(217 91% 60%));
   }
 
   .gradient-accent-text {
-    background: linear-gradient(135deg, hsl(217 91% 60%), hsl(18 99% 50%));
+    background: linear-gradient(135deg, hsl(22 100% 50%), hsl(217 91% 60%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;

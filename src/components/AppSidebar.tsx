@@ -52,11 +52,11 @@ export function AppSidebar() {
           <SidebarGroupLabel className="px-4 py-3">
             {!collapsed && (
               <span className="text-lg font-bold gradient-accent-text">
-                TripSync
+                Minha Viagem
               </span>
             )}
             {collapsed && (
-              <span className="text-lg font-bold text-accent">T</span>
+              <span className="text-lg font-bold text-primary">MV</span>
             )}
           </SidebarGroupLabel>
           <SidebarGroupContent>
