@@ -68,7 +68,7 @@ export default function Login() {
           </form>
           <p className="text-center text-sm text-muted-foreground mt-4">
             Não tem conta?{" "}
-            <Link to="/register" className="text-primary hover:underline">
+            <Link to="/register" className="text-accent hover:underline">
               Cadastre-se
             </Link>
           </p>
