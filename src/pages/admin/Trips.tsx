@@ -43,9 +43,19 @@ export default function AdminTrips() {
   const fetchTrips = async () => {
     const { data } = await supabase
       .from("trips")
-      .select("*, profiles:user_id(name)")
+      .select("*")
       .order("created_at", { ascending: false });
-    setTrips(data || []);
+    
+    // Fetch profile names separately
+    const trips = data || [];
+    const userIds = [...new Set(trips.map(t => t.user_id))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .in("id", userIds);
+    
+    const profileMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
+    setTrips(trips.map(t => ({ ...t, client_name: profileMap.get(t.user_id) || "—" })));
   };
 
   const fetchClients = async () => {
