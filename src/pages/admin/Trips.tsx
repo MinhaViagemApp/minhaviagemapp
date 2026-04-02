@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +18,7 @@ interface Trip {
   total_price: number;
   description: string;
   user_id: string;
-  profiles?: { name: string };
+  client_name?: string;
 }
 
 interface Client {
@@ -43,9 +43,19 @@ export default function AdminTrips() {
   const fetchTrips = async () => {
     const { data } = await supabase
       .from("trips")
-      .select("*, profiles:user_id(name)")
+      .select("*")
       .order("created_at", { ascending: false });
-    setTrips(data || []);
+    
+    // Fetch profile names separately
+    const trips = data || [];
+    const userIds = [...new Set(trips.map(t => t.user_id))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .in("id", userIds);
+    
+    const profileMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
+    setTrips(trips.map(t => ({ ...t, client_name: profileMap.get(t.user_id) || "—" })));
   };
 
   const fetchClients = async () => {
@@ -168,7 +178,7 @@ export default function AdminTrips() {
                 {new Date(trip.start_date).toLocaleDateString("pt-BR")} - {new Date(trip.end_date).toLocaleDateString("pt-BR")}
               </div>
               <p className="text-sm text-muted-foreground">
-                Cliente: {(trip.profiles as any)?.name || "—"}
+                Cliente: {trip.client_name || "—"}
               </p>
               <p className="text-lg font-bold text-primary">
                 R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Users, Plane, DollarSign, Activity } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { StatCard } from "@/components/StatCard";
 
 export default function AdminDashboard() {

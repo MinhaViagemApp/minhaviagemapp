@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,8 @@ interface Installment {
   status: string;
   due_date: string;
   trip_id: string;
-  trips?: { destination: string; profiles?: { name: string } };
+  destination?: string;
+  client_name?: string;
 }
 
 export default function AdminPayments() {
@@ -22,9 +23,27 @@ export default function AdminPayments() {
   const fetchInstallments = async () => {
     const { data } = await supabase
       .from("installments")
-      .select("*, trips(destination, profiles:user_id(name))")
+      .select("*, trips(destination, user_id)")
       .order("due_date", { ascending: true });
-    setInstallments(data || []);
+
+    const items = data || [];
+    const userIds = [...new Set(items.map((i: any) => i.trips?.user_id).filter(Boolean))];
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, name")
+      .in("id", userIds);
+    const profileMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
+
+    setInstallments(items.map((i: any) => ({
+      id: i.id,
+      installment_number: i.installment_number,
+      amount: i.amount,
+      status: i.status,
+      due_date: i.due_date,
+      trip_id: i.trip_id,
+      destination: i.trips?.destination,
+      client_name: profileMap.get(i.trips?.user_id) || "—",
+    })));
   };
 
   useEffect(() => { fetchInstallments(); }, []);
@@ -62,8 +81,8 @@ export default function AdminPayments() {
           <TableBody>
             {installments.map((inst) => (
               <TableRow key={inst.id} className="border-border/50">
-                <TableCell>{(inst.trips as any)?.destination}</TableCell>
-                <TableCell>{(inst.trips as any)?.profiles?.name || "—"}</TableCell>
+                <TableCell>{inst.destination}</TableCell>
+                <TableCell>{inst.client_name}</TableCell>
                 <TableCell>{inst.installment_number}ª</TableCell>
                 <TableCell>R$ {Number(inst.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
                 <TableCell>{new Date(inst.due_date).toLocaleDateString("pt-BR")}</TableCell>
