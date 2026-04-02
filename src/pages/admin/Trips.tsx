@@ -18,7 +18,7 @@ interface Trip {
   total_price: number;
   description: string;
   user_id: string;
-  profiles?: { name: string };
+  client_name?: string;
 }
 
 interface Client {
