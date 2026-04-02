@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Plane } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 export default function Register() {
   const [email, setEmail] = useState("");
@@ -37,14 +37,6 @@ export default function Register() {
     }
 
     if (data.user) {
-      // Insert into profiles
-      await supabase.from("profiles").insert({
-        id: data.user.id,
-        name,
-        email,
-      });
-
-      // Insert role
       await supabase.from("user_roles").insert({
         user_id: data.user.id,
         role: role === "admin" ? "admin" : "cliente",
@@ -52,16 +44,16 @@ export default function Register() {
     }
 
     setLoading(false);
-    toast.success("Conta criada! Verifique seu email.");
+    toast.success("Conta criada com sucesso!");
     navigate("/login");
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-md glass-strong animate-fade-in">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto h-14 w-14 rounded-2xl gradient-primary flex items-center justify-center mb-2">
-            <Plane className="h-7 w-7 text-accent-foreground" />
+          <div className="mx-auto mb-2">
+            <img src={logo} alt="Minha Viagem" className="h-20 w-auto mx-auto" />
           </div>
           <CardTitle className="text-2xl gradient-accent-text">Minha Viagem App</CardTitle>
           <CardDescription>Crie sua conta</CardDescription>

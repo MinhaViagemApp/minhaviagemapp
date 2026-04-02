@@ -18,6 +18,7 @@ import ClientDashboard from "./pages/client/Dashboard";
 import ClientPayments from "./pages/client/Payments";
 import ClientPromotions from "./pages/client/Promotions";
 import ClientNotifications from "./pages/client/Notifications";
+import CompanyProfile from "./pages/CompanyProfile";
 
 const queryClient = new QueryClient();
 
@@ -39,6 +40,7 @@ const App = () => (
               <Route path="trips" element={<AdminTrips />} />
               <Route path="payments" element={<AdminPayments />} />
               <Route path="promotions" element={<AdminPromotions />} />
+              <Route path="profile" element={<CompanyProfile />} />
             </Route>
 
             <Route path="/client" element={<AppLayout requiredRole="cliente" />}>
