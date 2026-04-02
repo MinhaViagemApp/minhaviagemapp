@@ -30,7 +30,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <Card className="w-full max-w-md glass-strong animate-fade-in">
         <CardHeader className="text-center space-y-2">
-          <div className="mx-auto h-14 w-14 rounded-2xl gradient-accent flex items-center justify-center mb-2">
+          <div className="mx-auto h-14 w-14 rounded-2xl gradient-primary flex items-center justify-center mb-2">
             <Plane className="h-7 w-7 text-accent-foreground" />
           </div>
           <CardTitle className="text-2xl gradient-accent-text">Minha Viagem App</CardTitle>
