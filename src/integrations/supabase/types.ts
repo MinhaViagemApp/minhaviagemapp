@@ -110,6 +110,11 @@ export type Database = {
       }
       profiles: {
         Row: {
+          business_address: string | null
+          business_cnpj: string | null
+          business_logo_url: string | null
+          business_name: string | null
+          business_phone: string | null
           created_at: string
           email: string | null
           id: string
@@ -117,6 +122,11 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          business_address?: string | null
+          business_cnpj?: string | null
+          business_logo_url?: string | null
+          business_name?: string | null
+          business_phone?: string | null
           created_at?: string
           email?: string | null
           id: string
@@ -124,6 +134,11 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          business_address?: string | null
+          business_cnpj?: string | null
+          business_logo_url?: string | null
+          business_name?: string | null
+          business_phone?: string | null
           created_at?: string
           email?: string | null
           id?: string

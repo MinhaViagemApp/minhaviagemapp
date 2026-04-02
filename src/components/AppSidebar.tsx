@@ -6,6 +6,7 @@ import {
   Tag,
   Bell,
   LogOut,
+  Building2,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +23,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import logo from "@/assets/logo.png";
 
 const adminItems = [
   { title: "Dashboard", url: "/admin", icon: LayoutDashboard },
@@ -29,6 +31,7 @@ const adminItems = [
   { title: "Viagens", url: "/admin/trips", icon: Plane },
   { title: "Pagamentos", url: "/admin/payments", icon: CreditCard },
   { title: "Promoções", url: "/admin/promotions", icon: Tag },
+  { title: "Perfil Empresa", url: "/admin/profile", icon: Building2 },
 ];
 
 const clientItems = [
@@ -50,13 +53,10 @@ export function AppSidebar() {
       <SidebarContent className="bg-sidebar">
         <SidebarGroup>
           <SidebarGroupLabel className="px-4 py-3">
-            {!collapsed && (
-              <span className="text-lg font-bold gradient-accent-text">
-                Minha Viagem
-              </span>
-            )}
-            {collapsed && (
-              <span className="text-lg font-bold text-primary">MV</span>
+            {!collapsed ? (
+              <img src={logo} alt="Minha Viagem" className="h-10 w-auto" />
+            ) : (
+              <img src={logo} alt="MV" className="h-8 w-auto" />
             )}
           </SidebarGroupLabel>
           <SidebarGroupContent>
