@@ -62,7 +62,7 @@ export default function Login() {
                 className="bg-secondary/50"
               />
             </div>
-            <Button type="submit" className="w-full gradient-accent" disabled={loading}>
+            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
               {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
