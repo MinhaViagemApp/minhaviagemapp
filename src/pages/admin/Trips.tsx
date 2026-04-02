@@ -178,7 +178,7 @@ export default function AdminTrips() {
                 {new Date(trip.start_date).toLocaleDateString("pt-BR")} - {new Date(trip.end_date).toLocaleDateString("pt-BR")}
               </div>
               <p className="text-sm text-muted-foreground">
-                Cliente: {(trip.profiles as any)?.name || "—"}
+                Cliente: {trip.client_name || "—"}
               </p>
               <p className="text-lg font-bold text-primary">
                 R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
