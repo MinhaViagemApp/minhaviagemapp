@@ -116,7 +116,7 @@ export default function Register() {
                 </SelectContent>
               </Select>
             </div>
-            <Button type="submit" className="w-full gradient-accent" disabled={loading}>
+            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
               {loading ? "Criando..." : "Criar conta"}
             </Button>
           </form>
