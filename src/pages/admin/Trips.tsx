@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,17 +17,14 @@ interface Trip {
   end_date: string;
   total_price: number;
   description: string;
-  user_id: string;
-  client_name?: string;
+  company_id: string | null;
 }
 
-interface Client { id: string; name: string }
-
-const emptyForm = { destination: "", start_date: "", end_date: "", total_price: "", description: "", user_id: "", installments: "1" };
+const emptyForm = { destination: "", start_date: "", end_date: "", total_price: "", description: "", installments: "1" };
 
 export default function AdminTrips() {
+  const { companyId } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<Trip | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -36,20 +33,16 @@ export default function AdminTrips() {
   const [uploading, setUploading] = useState(false);
 
   const fetchTrips = async () => {
-    const { data } = await supabase.from("trips").select("*").order("created_at", { ascending: false });
-    const allTrips = data || [];
-    const userIds = [...new Set(allTrips.map(t => t.user_id))];
-    const { data: profiles } = await supabase.from("profiles").select("id, name").in("id", userIds);
-    const profileMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
-    setTrips(allTrips.map(t => ({ ...t, client_name: profileMap.get(t.user_id) || "—" })));
+    if (!companyId) return;
+    const { data } = await supabase
+      .from("trips")
+      .select("*")
+      .eq("company_id", companyId)
+      .order("created_at", { ascending: false });
+    setTrips(data || []);
   };
 
-  const fetchClients = async () => {
-    const { data } = await supabase.from("profiles").select("id, name");
-    setClients(data || []);
-  };
-
-  useEffect(() => { fetchTrips(); fetchClients(); }, []);
+  useEffect(() => { fetchTrips(); }, [companyId]);
 
   const openCreate = () => { setEditTrip(null); setForm(emptyForm); setOpen(true); };
 
@@ -61,20 +54,21 @@ export default function AdminTrips() {
       end_date: trip.end_date,
       total_price: String(trip.total_price),
       description: trip.description || "",
-      user_id: trip.user_id,
       installments: "1",
     });
     setOpen(true);
   };
 
   const handleSave = async () => {
-    const payload = {
+    if (!companyId) return;
+    const payload: any = {
       destination: form.destination,
       start_date: form.start_date,
       end_date: form.end_date,
       total_price: parseFloat(form.total_price),
       description: form.description,
-      user_id: form.user_id,
+      company_id: companyId,
+      user_id: (await supabase.auth.getUser()).data.user?.id,
     };
 
     if (editTrip) {
@@ -85,14 +79,16 @@ export default function AdminTrips() {
       const { data: trip, error } = await supabase.from("trips").insert(payload).select().single();
       if (error) { toast.error(error.message); return; }
       const numInstallments = parseInt(form.installments);
-      const amount = parseFloat(form.total_price) / numInstallments;
-      const installments = Array.from({ length: numInstallments }, (_, i) => {
-        const dueDate = new Date(form.start_date);
-        dueDate.setMonth(dueDate.getMonth() + i);
-        return { trip_id: trip.id, installment_number: i + 1, amount: Math.round(amount * 100) / 100, status: "pendente", due_date: dueDate.toISOString().split("T")[0] };
-      });
-      await supabase.from("installments").insert(installments);
-      toast.success("Viagem criada com parcelas!");
+      if (numInstallments > 1) {
+        const amount = parseFloat(form.total_price) / numInstallments;
+        const installments = Array.from({ length: numInstallments }, (_, i) => {
+          const dueDate = new Date(form.start_date);
+          dueDate.setMonth(dueDate.getMonth() + i);
+          return { trip_id: trip.id, installment_number: i + 1, amount: Math.round(amount * 100) / 100, status: "pendente", due_date: dueDate.toISOString().split("T")[0] };
+        });
+        await supabase.from("installments").insert(installments);
+      }
+      toast.success("Viagem criada!");
     }
     setOpen(false);
     setForm(emptyForm);
@@ -132,25 +128,17 @@ export default function AdminTrips() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Viagens</h1>
-          <p className="text-muted-foreground">Gerencie as viagens dos clientes</p>
+          <p className="text-muted-foreground">Gerencie as viagens da empresa</p>
         </div>
         <Button className="gradient-accent" onClick={openCreate}>
           <Plus className="mr-2 h-4 w-4" /> Nova Viagem
         </Button>
       </div>
 
-      {/* Create/Edit Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="glass-strong max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editTrip ? "Editar Viagem" : "Nova Viagem"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Cliente</Label>
-              <Select value={form.user_id} onValueChange={(v) => setForm({ ...form, user_id: v })}>
-                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <Label>Destino</Label>
               <Input value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} className="bg-secondary/50" />
@@ -186,7 +174,6 @@ export default function AdminTrips() {
         </DialogContent>
       </Dialog>
 
-      {/* Photos Dialog */}
       <Dialog open={!!photoModal} onOpenChange={() => setPhotoModal(null)}>
         <DialogContent className="glass-strong max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Fotos - {photoModal?.destination}</DialogTitle></DialogHeader>
@@ -237,7 +224,6 @@ export default function AdminTrips() {
                 <Calendar className="h-3 w-3" />
                 {new Date(trip.start_date).toLocaleDateString("pt-BR")} - {new Date(trip.end_date).toLocaleDateString("pt-BR")}
               </div>
-              <p className="text-sm text-muted-foreground">Cliente: {trip.client_name || "—"}</p>
               <p className="text-lg font-bold text-primary">R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
             </CardContent>
           </Card>
