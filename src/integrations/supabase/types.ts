@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          payment_method: string
+          payment_status: string
+          total_value: number
+          trip_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          payment_method?: string
+          payment_status?: string
+          total_value?: number
+          trip_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          payment_method?: string
+          payment_status?: string
+          total_value?: number
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       installments: {
         Row: {
           amount: number
