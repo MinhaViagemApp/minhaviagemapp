@@ -29,37 +29,42 @@ export default function ClientDashboard() {
   const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.email) return;
     const fetchData = async () => {
-      // Fetch bookings for this client
+      // Find client records by email
+      const { data: clientRecords } = await supabase
+        .from("clients")
+        .select("id, company_id")
+        .eq("email", user.email!);
+
+      if (!clientRecords || clientRecords.length === 0) { setBookings([]); return; }
+
+      const clientIds = clientRecords.map(c => c.id);
+
+      // Fetch bookings for these client records
       const { data: bookingsData } = await supabase
         .from("bookings")
-        .select("*")
-        .eq("client_id", user.id);
+        .select("*, trips!inner(destination, start_date, end_date, description)")
+        .in("client_id", clientIds);
 
       if (!bookingsData || bookingsData.length === 0) { setBookings([]); return; }
 
-      const tripIds = bookingsData.map(b => b.trip_id);
-      const { data: tripsData } = await supabase.from("trips").select("*").in("id", tripIds);
-      const tripMap = new Map(tripsData?.map(t => [t.id, t]) || []);
-
-      const mapped: BookingInfo[] = bookingsData.map(b => {
-        const t = tripMap.get(b.trip_id);
-        return {
-          id: b.id,
-          total_value: Number(b.total_value),
-          payment_method: b.payment_method,
-          payment_status: b.payment_status,
-          trip_destination: t?.destination || "—",
-          trip_start_date: t?.start_date || "",
-          trip_end_date: t?.end_date || "",
-          trip_description: t?.description || null,
-          trip_id: b.trip_id,
-        };
-      });
+      const mapped: BookingInfo[] = bookingsData.map((b: any) => ({
+        id: b.id,
+        total_value: Number(b.total_value),
+        payment_method: b.payment_method,
+        payment_status: b.payment_status,
+        trip_destination: b.trips?.destination || "—",
+        trip_start_date: b.trips?.start_date || "",
+        trip_end_date: b.trips?.end_date || "",
+        trip_description: b.trips?.description || null,
+        trip_id: b.trip_id,
+      }));
       setBookings(mapped);
 
-      // Fetch photos for each trip
+      const tripIds = mapped.map(b => b.trip_id);
+
+      // Fetch photos
       const { data: images } = await supabase.from("trip_images").select("trip_id, image_url").in("trip_id", tripIds);
       const photoMap: Record<string, string[]> = {};
       images?.forEach(img => {
@@ -76,22 +81,26 @@ export default function ClientDashboard() {
       });
       setPaidAmounts(paidMap);
 
-      // Fetch admin PIX key
-      const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1);
-      if (admins?.[0]) {
-        const { data: profile } = await supabase.from("profiles").select("pix_key").eq("id", admins[0].user_id).single();
-        setPixKey((profile as any)?.pix_key || "");
+      // Fetch PIX key from company
+      const companyIds = [...new Set(clientRecords.map(c => c.company_id))];
+      if (companyIds.length > 0) {
+        const { data: company } = await supabase
+          .from("companies")
+          .select("pix_key")
+          .in("id", companyIds)
+          .maybeSingle();
+        setPixKey(company?.pix_key || "");
       }
     };
     fetchData();
   }, [user]);
 
-  // Realtime updates
+  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel("client-bookings")
       .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => {
-        if (user) window.location.reload(); // simple refresh for realtime
+        if (user) window.location.reload();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -133,7 +142,6 @@ export default function ClientDashboard() {
 
         return (
           <Card key={booking.id} className="glass animate-fade-in">
-            {/* Photo Carousel */}
             {tripPhotos.length > 0 && (
               <div className="relative rounded-t-xl overflow-hidden">
                 <img src={tripPhotos[idx]} alt="Destino" className="w-full h-48 object-cover" />
@@ -191,7 +199,6 @@ export default function ClientDashboard() {
                 </div>
               </div>
 
-              {/* Payment progress */}
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Progresso do pagamento</span>
@@ -200,7 +207,6 @@ export default function ClientDashboard() {
                 <Progress value={paidPercent} className="h-3" />
               </div>
 
-              {/* Info */}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
@@ -220,7 +226,6 @@ export default function ClientDashboard() {
         );
       })}
 
-      {/* PIX Key */}
       {pixKey && (
         <Card className="glass animate-fade-in">
           <CardContent className="p-4 space-y-2">
