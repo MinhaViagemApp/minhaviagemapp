@@ -276,6 +276,7 @@ export type Database = {
           description: string | null
           expires_at: string | null
           id: string
+          image: string | null
           title: string
         }
         Insert: {
@@ -284,6 +285,7 @@ export type Database = {
           description?: string | null
           expires_at?: string | null
           id?: string
+          image?: string | null
           title: string
         }
         Update: {
@@ -292,6 +294,7 @@ export type Database = {
           description?: string | null
           expires_at?: string | null
           id?: string
+          image?: string | null
           title?: string
         }
         Relationships: [
@@ -341,6 +344,7 @@ export type Database = {
           destination: string
           end_date: string
           id: string
+          images: string[]
           start_date: string
           total_price: number
           updated_at: string
@@ -353,6 +357,7 @@ export type Database = {
           destination: string
           end_date: string
           id?: string
+          images?: string[]
           start_date: string
           total_price?: number
           updated_at?: string
@@ -365,6 +370,7 @@ export type Database = {
           destination?: string
           end_date?: string
           id?: string
+          images?: string[]
           start_date?: string
           total_price?: number
           updated_at?: string
