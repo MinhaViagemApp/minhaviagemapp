@@ -101,67 +101,128 @@ export default function AdminClients() {
   };
 
   const handleSave = async () => {
-    if (!email || !tripId || !totalValue || !companyId) {
-      toast.error("Preencha e-mail, viagem e valor total.");
+    if (!companyId) {
+      const message = "Erro: empresa não identificada.";
+      console.error(message, { companyId });
+      toast.error(message);
+      window.alert(message);
       return;
     }
+
+    if (!email || !tripId || !totalValue) {
+      const message = "Preencha e-mail, viagem e valor total.";
+      console.error(message, { email, totalValue, tripId });
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
     setSaving(true);
+
     try {
       // Check if client exists by email + company
-      const { data: existing } = await supabase
+      const { data: existing, error: existingError } = await supabase
         .from("clients")
         .select("id")
         .eq("email", email)
         .eq("company_id", companyId)
         .maybeSingle();
 
+      if (existingError) {
+        console.error("Erro Supabase (buscar cliente existente):", existingError);
+        toast.error(existingError.message);
+        window.alert(existingError.message);
+        return;
+      }
+
       let clientId = existing?.id;
 
       if (!clientId) {
+        const clientPayload = { name: name || email, email, phone: phone || null, company_id: companyId };
+
+        console.log("Payload enviado (cliente):", clientPayload);
+
         const { data: newClient, error: clientErr } = await supabase
           .from("clients")
-          .insert({ name: name || email, email, phone: phone || null, company_id: companyId })
+          .insert(clientPayload)
           .select("id")
           .single();
+
         if (clientErr) {
+          console.error("Erro Supabase (cliente):", clientErr);
           toast.error("Erro ao criar cliente: " + clientErr.message);
-          setSaving(false);
+          window.alert(clientErr.message);
           return;
         }
+
+        console.log("Sucesso (cliente):", newClient);
         clientId = newClient.id;
       } else if (name || phone) {
-        await supabase.from("clients").update({
+        const updatePayload = {
           ...(name && { name }),
           ...(phone && { phone }),
-        }).eq("id", clientId);
+        };
+
+        console.log("Payload enviado (atualizar cliente):", updatePayload);
+
+        const { error: updateClientError, data: updatedClient } = await supabase
+          .from("clients")
+          .update(updatePayload)
+          .eq("id", clientId)
+          .select("id")
+          .single();
+
+        if (updateClientError) {
+          console.error("Erro Supabase (atualizar cliente):", updateClientError);
+          toast.error(updateClientError.message);
+          window.alert(updateClientError.message);
+          return;
+        }
+
+        console.log("Sucesso (atualizar cliente):", updatedClient);
       }
 
-      const { error: bookingErr } = await supabase.from("bookings").insert({
+      const bookingPayload = {
         client_id: clientId,
         trip_id: tripId,
         total_value: parseFloat(totalValue),
         payment_method: paymentMethod,
         payment_status: "pendente",
-      });
+      };
+
+      console.log("Payload enviado (booking):", bookingPayload);
+
+      const { data: bookingData, error: bookingErr } = await supabase
+        .from("bookings")
+        .insert(bookingPayload)
+        .select("id")
+        .single();
 
       if (bookingErr) {
+        console.error("Erro Supabase (booking):", bookingErr);
         if (bookingErr.message.includes("unique") || bookingErr.message.includes("duplicate")) {
           toast.error("Este cliente já está vinculado a esta viagem.");
+          window.alert("Este cliente já está vinculado a esta viagem.");
         } else {
           toast.error(bookingErr.message);
+          window.alert(bookingErr.message);
         }
-        setSaving(false);
         return;
       }
+
+      console.log("Sucesso (booking):", bookingData);
 
       toast.success("Cliente cadastrado na viagem com sucesso!");
       setOpen(false);
       resetForm();
       fetchBookings();
     } catch (err: any) {
+      console.error("Erro inesperado ao salvar cliente:", err);
       toast.error("Erro inesperado: " + err.message);
+      window.alert(err.message);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const resetForm = () => {
@@ -170,8 +231,24 @@ export default function AdminClients() {
 
   const togglePaymentStatus = async (booking: Booking) => {
     const newStatus = booking.payment_status === "pendente" ? "pago" : "pendente";
-    const { error } = await supabase.from("bookings").update({ payment_status: newStatus }).eq("id", booking.id);
-    if (error) { toast.error(error.message); return; }
+
+    console.log("Payload enviado (atualizar status pagamento):", { id: booking.id, payment_status: newStatus });
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .update({ payment_status: newStatus })
+      .eq("id", booking.id)
+      .select("id, payment_status")
+      .single();
+
+    if (error) {
+      console.error("Erro Supabase (atualizar status pagamento):", error);
+      toast.error(error.message);
+      window.alert(error.message);
+      return;
+    }
+
+    console.log("Sucesso (atualizar status pagamento):", data);
     toast.success(newStatus === "pago" ? "Marcado como pago!" : "Voltou para pendente.");
     fetchBookings();
   };

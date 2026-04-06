@@ -25,11 +25,16 @@ export default function CompanyProfile() {
   useEffect(() => {
     if (!companyId) { setLoading(false); return; }
     const fetchCompany = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("companies")
         .select("name, cnpj, address, phone, logo_url, pix_key")
         .eq("id", companyId)
         .single();
+
+      if (error) {
+        console.error("Erro Supabase (buscar empresa):", error);
+      }
+
       if (data) {
         setForm({
           name: data.name || "",
@@ -47,33 +52,150 @@ export default function CompanyProfile() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!companyId) return;
+
+    if (!user) {
+      const message = "Erro: usuário não autenticado.";
+      console.error(message);
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
+    const companyName = form.name.trim();
+
+    if (!companyName) {
+      const message = "Informe o nome da empresa antes de finalizar.";
+      console.error(message);
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
     setSaving(true);
-    const { error } = await supabase
-      .from("companies")
-      .update({
-        name: form.name || null,
+
+    try {
+      if (!companyId) {
+        const slugBase = (companyName || user.email?.split("@")[0] || "empresa")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-zA-Z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+          .toLowerCase();
+
+        const companyPayload = {
+          address: form.address || null,
+          cnpj: form.cnpj || null,
+          logo_url: form.logo_url || null,
+          name: companyName,
+          phone: form.phone || null,
+          pix_key: form.pix_key || null,
+          slug: `${slugBase || "empresa"}-${Date.now()}`,
+        };
+
+        console.log("Payload enviado (empresa):", companyPayload);
+
+        const { data: newCompany, error: createError } = await supabase
+          .from("companies")
+          .insert(companyPayload)
+          .select("id")
+          .single();
+
+        if (createError) {
+          console.error("Erro Supabase (empresa):", createError);
+          toast.error(createError.message);
+          window.alert(createError.message);
+          return;
+        }
+
+        console.log("Sucesso (empresa):", newCompany);
+
+        const membershipPayload = {
+          user_id: user.id,
+          company_id: newCompany.id,
+        };
+
+        console.log("Payload enviado (user_companies):", membershipPayload);
+
+        const { error: membershipError } = await supabase.from("user_companies").insert(membershipPayload);
+
+        if (membershipError) {
+          console.error("Erro Supabase (user_companies):", membershipError);
+          toast.error(membershipError.message);
+          window.alert(membershipError.message);
+          return;
+        }
+
+        console.log("Sucesso (user_companies):", membershipPayload);
+        toast.success("Empresa criada com sucesso!");
+        window.location.reload();
+        return;
+      }
+
+      const payload = {
+        name: companyName,
         cnpj: form.cnpj || null,
         address: form.address || null,
         phone: form.phone || null,
         logo_url: form.logo_url || null,
         pix_key: form.pix_key || null,
-      })
-      .eq("id", companyId);
-    setSaving(false);
-    if (error) { toast.error("Erro ao salvar: " + error.message); }
-    else { toast.success("Dados atualizados com sucesso!"); }
+      };
+
+      console.log("Payload enviado (atualizar empresa):", payload);
+
+      const { data, error } = await supabase
+        .from("companies")
+        .update(payload)
+        .eq("id", companyId)
+        .select("id")
+        .single();
+
+      if (error) {
+        console.error("Erro Supabase (atualizar empresa):", error);
+        toast.error(error.message);
+        window.alert(error.message);
+        return;
+      }
+
+      console.log("Sucesso (atualizar empresa):", data);
+      toast.success("Dados atualizados com sucesso!");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !companyId) return;
+    const ownerId = companyId || user?.id;
+
+    if (!file || !ownerId) return;
+
     setUploading(true);
-    const ext = file.name.split(".").pop();
-    const filePath = `companies/${companyId}/logo.${ext}`;
+
+    const ext = file.name.split(".").pop() || "png";
+    const filePath = `${ownerId}/logo-${Date.now()}.${ext}`;
+
+    console.log("Payload enviado (upload logo):", {
+      bucket: "logos",
+      fileName: file.name,
+      filePath,
+      size: file.size,
+      type: file.type,
+    });
+
     const { error: uploadError } = await supabase.storage.from("logos").upload(filePath, file, { upsert: true });
-    if (uploadError) { toast.error("Erro no upload: " + uploadError.message); setUploading(false); return; }
+
+    if (uploadError) {
+      console.error("Erro Supabase (upload logo):", uploadError);
+      toast.error("Erro no upload: " + uploadError.message);
+      window.alert(uploadError.message);
+      setUploading(false);
+      return;
+    }
+
     const { data: urlData } = supabase.storage.from("logos").getPublicUrl(filePath);
+
+    console.log("Sucesso (upload logo):", urlData);
+
     setForm((prev) => ({ ...prev, logo_url: urlData.publicUrl }));
     setUploading(false);
     toast.success("Logo enviada! Salve para confirmar.");
@@ -137,7 +259,7 @@ export default function CompanyProfile() {
               <p className="text-xs text-muted-foreground">Essa chave será exibida para os clientes no painel de pagamentos.</p>
             </div>
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={saving}>
-              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar dados"}
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : companyId ? "Salvar dados" : "Finalizar cadastro da empresa"}
             </Button>
           </form>
         </CardContent>
