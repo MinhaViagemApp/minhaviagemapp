@@ -18,6 +18,7 @@ interface BookingInfo {
   trip_end_date: string;
   trip_description: string | null;
   trip_id: string;
+  trip_images: string[];
 }
 
 export default function ClientDashboard() {
@@ -44,7 +45,7 @@ export default function ClientDashboard() {
       // Fetch bookings for these client records
       const { data: bookingsData } = await supabase
         .from("bookings")
-        .select("*, trips!inner(destination, start_date, end_date, description)")
+        .select("*, trips!inner(destination, start_date, end_date, description, images)")
         .in("client_id", clientIds);
 
       if (!bookingsData || bookingsData.length === 0) { setBookings([]); return; }
@@ -59,6 +60,7 @@ export default function ClientDashboard() {
         trip_end_date: b.trips?.end_date || "",
         trip_description: b.trips?.description || null,
         trip_id: b.trip_id,
+        trip_images: b.trips?.images || [],
       }));
       setBookings(mapped);
 
@@ -67,9 +69,14 @@ export default function ClientDashboard() {
       // Fetch photos
       const { data: images } = await supabase.from("trip_images").select("trip_id, image_url").in("trip_id", tripIds);
       const photoMap: Record<string, string[]> = {};
+      mapped.forEach((booking) => {
+        photoMap[booking.trip_id] = [...(booking.trip_images || [])];
+      });
       images?.forEach(img => {
         if (!photoMap[img.trip_id]) photoMap[img.trip_id] = [];
-        photoMap[img.trip_id].push(img.image_url);
+        if (!photoMap[img.trip_id].includes(img.image_url)) {
+          photoMap[img.trip_id].push(img.image_url);
+        }
       });
       setPhotos(photoMap);
 
@@ -233,9 +240,10 @@ export default function ClientDashboard() {
               <KeyRound className="h-4 w-4 text-primary" />
               Chave PIX para pagamento
             </div>
+            <p className="text-sm text-muted-foreground">Pague sua parcela copiando a chave Pix abaixo.</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 bg-secondary/50 rounded-md px-3 py-2 text-sm break-all">{pixKey}</code>
-              <Button variant="ghost" size="icon" onClick={copyPix}><Copy className="h-4 w-4" /></Button>
+              <Button variant="secondary" onClick={copyPix}><Copy className="mr-2 h-4 w-4" />Copiar chave Pix</Button>
             </div>
           </CardContent>
         </Card>

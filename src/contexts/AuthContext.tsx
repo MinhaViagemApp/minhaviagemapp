@@ -110,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const ensureProfileAndRole = async (currentUser: User) => {
-    const fallbackRole = currentUser.user_metadata?.role === "admin" ? "admin" : "cliente";
+    const fallbackRole: "admin" | "cliente" = currentUser.user_metadata?.role === "admin" ? "admin" : "cliente";
 
     console.log("Sincronizando autenticação:", {
       email: currentUser.email,

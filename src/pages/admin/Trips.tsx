@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { TripImagePicker } from "@/components/admin/TripImagePicker";
+import { uploadTripImages } from "@/lib/trip-image-upload";
 
 interface Trip {
   id: string;
@@ -18,36 +20,57 @@ interface Trip {
   total_price: number;
   description: string;
   company_id: string | null;
+  images: string[];
+}
+
+interface TripPhoto {
+  id: string;
+  image_url: string;
+  source: "trip" | "legacy";
 }
 
 const emptyForm = { destination: "", start_date: "", end_date: "", total_price: "", description: "", installments: "1" };
 
 export default function AdminTrips() {
-  const { companyId } = useAuth();
+  const { companyId, user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [open, setOpen] = useState(false);
   const [editTrip, setEditTrip] = useState<Trip | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [photoModal, setPhotoModal] = useState<Trip | null>(null);
-  const [photos, setPhotos] = useState<{ id: string; image_url: string }[]>([]);
+  const [photos, setPhotos] = useState<TripPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
 
   const fetchTrips = async () => {
     if (!companyId) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("trips")
       .select("*")
       .eq("company_id", companyId)
       .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Erro Supabase (listar viagens):", error);
+      return;
+    }
+
     setTrips(data || []);
   };
 
   useEffect(() => { fetchTrips(); }, [companyId]);
 
-  const openCreate = () => { setEditTrip(null); setForm(emptyForm); setOpen(true); };
+  const openCreate = () => {
+    setEditTrip(null);
+    setForm(emptyForm);
+    setSelectedImages([]);
+    setOpen(true);
+  };
 
   const openEdit = (trip: Trip) => {
     setEditTrip(trip);
+    setSelectedImages([]);
     setForm({
       destination: trip.destination,
       start_date: trip.start_date,
@@ -60,66 +83,251 @@ export default function AdminTrips() {
   };
 
   const handleSave = async () => {
-    if (!companyId) return;
-    const payload: any = {
-      destination: form.destination,
-      start_date: form.start_date,
-      end_date: form.end_date,
-      total_price: parseFloat(form.total_price),
-      description: form.description,
-      company_id: companyId,
-      user_id: (await supabase.auth.getUser()).data.user?.id,
-    };
-
-    if (editTrip) {
-      const { error } = await supabase.from("trips").update(payload).eq("id", editTrip.id);
-      if (error) { toast.error(error.message); return; }
-      toast.success("Viagem atualizada!");
-    } else {
-      const { data: trip, error } = await supabase.from("trips").insert(payload).select().single();
-      if (error) { toast.error(error.message); return; }
-      const numInstallments = parseInt(form.installments);
-      if (numInstallments > 1) {
-        const amount = parseFloat(form.total_price) / numInstallments;
-        const installments = Array.from({ length: numInstallments }, (_, i) => {
-          const dueDate = new Date(form.start_date);
-          dueDate.setMonth(dueDate.getMonth() + i);
-          return { trip_id: trip.id, installment_number: i + 1, amount: Math.round(amount * 100) / 100, status: "pendente", due_date: dueDate.toISOString().split("T")[0] };
-        });
-        await supabase.from("installments").insert(installments);
-      }
-      toast.success("Viagem criada!");
+    if (!companyId) {
+      const message = "Erro: empresa não identificada.";
+      console.error(message, { companyId });
+      toast.error(message);
+      window.alert(message);
+      return;
     }
-    setOpen(false);
-    setForm(emptyForm);
-    setEditTrip(null);
-    fetchTrips();
+
+    if (!user) {
+      const message = "Erro: usuário não autenticado.";
+      console.error(message);
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
+    if (!form.destination || !form.start_date || !form.end_date || !form.total_price) {
+      const message = "Preencha destino, datas e valor da viagem.";
+      console.error(message, form);
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
+    if ((editTrip?.images.length || 0) + selectedImages.length > 10) {
+      const message = "Máximo de 10 imagens por viagem.";
+      console.error(message);
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const uploadedUrls = selectedImages.length
+        ? await uploadTripImages({ files: selectedImages, companyId })
+        : [];
+
+      const payload = {
+        destination: form.destination,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        total_price: parseFloat(form.total_price),
+        description: form.description || null,
+        company_id: companyId,
+        user_id: user.id,
+        images: editTrip ? [...(editTrip.images || []), ...uploadedUrls] : uploadedUrls,
+      };
+
+      console.log(`Payload enviado (${editTrip ? "atualizar viagem" : "nova viagem"}):`, payload);
+
+      if (editTrip) {
+        const { data, error } = await supabase
+          .from("trips")
+          .update(payload)
+          .eq("id", editTrip.id)
+          .select("id, images")
+          .single();
+
+        if (error) {
+          console.error("Erro Supabase (atualizar viagem):", error);
+          toast.error(error.message);
+          window.alert(error.message);
+          return;
+        }
+
+        console.log("Sucesso (atualizar viagem):", data);
+        toast.success("Viagem atualizada!");
+      } else {
+        const { data: trip, error } = await supabase
+          .from("trips")
+          .insert(payload)
+          .select("id")
+          .single();
+
+        if (error) {
+          console.error("Erro Supabase (nova viagem):", error);
+          toast.error(error.message);
+          window.alert(error.message);
+          return;
+        }
+
+        console.log("Sucesso (nova viagem):", trip);
+
+        const numInstallments = parseInt(form.installments);
+        if (numInstallments > 1) {
+          const amount = parseFloat(form.total_price) / numInstallments;
+          const installmentsPayload = Array.from({ length: numInstallments }, (_, i) => {
+            const dueDate = new Date(form.start_date);
+            dueDate.setMonth(dueDate.getMonth() + i);
+            return {
+              trip_id: trip.id,
+              installment_number: i + 1,
+              amount: Math.round(amount * 100) / 100,
+              status: "pendente",
+              due_date: dueDate.toISOString().split("T")[0],
+            };
+          });
+
+          console.log("Payload enviado (parcelas):", installmentsPayload);
+
+          const { error: installmentError, data: installmentData } = await supabase
+            .from("installments")
+            .insert(installmentsPayload)
+            .select("id");
+
+          if (installmentError) {
+            console.error("Erro Supabase (parcelas):", installmentError);
+            toast.error(installmentError.message);
+            window.alert(installmentError.message);
+            return;
+          }
+
+          console.log("Sucesso (parcelas):", installmentData);
+        }
+
+        toast.success("Viagem criada!");
+      }
+
+      setOpen(false);
+      setForm(emptyForm);
+      setEditTrip(null);
+      setSelectedImages([]);
+      fetchTrips();
+    } catch (error: any) {
+      console.error("Erro inesperado ao salvar viagem:", error);
+      toast.error(error.message || "Erro ao salvar viagem.");
+      window.alert(error.message || "Erro ao salvar viagem.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openPhotos = async (trip: Trip) => {
     setPhotoModal(trip);
-    const { data } = await supabase.from("trip_images").select("id, image_url").eq("trip_id", trip.id);
-    setPhotos(data || []);
+
+    const tripPhotos: TripPhoto[] = (trip.images || []).map((imageUrl, index) => ({
+      id: `${trip.id}-${index}`,
+      image_url: imageUrl,
+      source: "trip",
+    }));
+
+    const { data, error } = await supabase.from("trip_images").select("id, image_url").eq("trip_id", trip.id);
+
+    if (error) {
+      console.error("Erro Supabase (listar fotos legadas):", error);
+      setPhotos(tripPhotos);
+      return;
+    }
+
+    const legacyPhotos: TripPhoto[] = (data || []).map((photo) => ({ ...photo, source: "legacy" as const }));
+    const merged = [...tripPhotos, ...legacyPhotos.filter((photo) => !tripPhotos.some((tripPhoto) => tripPhoto.image_url === photo.image_url))];
+    setPhotos(merged);
   };
 
   const uploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !photoModal) return;
+    if (!file || !photoModal || !companyId) return;
+
+    if ((photoModal.images.length || 0) >= 10) {
+      const message = "Máximo de 10 imagens por viagem.";
+      console.error(message);
+      toast.error(message);
+      window.alert(message);
+      return;
+    }
+
     setUploading(true);
-    const ext = file.name.split(".").pop();
-    const filePath = `trips/${photoModal.id}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("logos").upload(filePath, file, { upsert: true });
-    if (upErr) { toast.error(upErr.message); setUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("logos").getPublicUrl(filePath);
-    await supabase.from("trip_images").insert({ trip_id: photoModal.id, image_url: urlData.publicUrl });
-    setPhotos(prev => [...prev, { id: Date.now().toString(), image_url: urlData.publicUrl }]);
-    setUploading(false);
-    toast.success("Foto adicionada!");
+
+    try {
+      const [imageUrl] = await uploadTripImages({ files: [file], companyId });
+      const nextImages = [...(photoModal.images || []), imageUrl];
+
+      console.log("Payload enviado (adicionar foto na viagem):", { id: photoModal.id, images: nextImages });
+
+      const { data, error } = await supabase
+        .from("trips")
+        .update({ images: nextImages })
+        .eq("id", photoModal.id)
+        .select("id, images")
+        .single();
+
+      if (error) {
+        console.error("Erro Supabase (adicionar foto na viagem):", error);
+        toast.error(error.message);
+        window.alert(error.message);
+        return;
+      }
+
+      console.log("Sucesso (adicionar foto na viagem):", data);
+      setPhotoModal({ ...photoModal, images: nextImages });
+      setTrips((currentTrips) => currentTrips.map((trip) => trip.id === photoModal.id ? { ...trip, images: nextImages } : trip));
+      setPhotos((prev) => [...prev, { id: `${photoModal.id}-${Date.now()}`, image_url: imageUrl, source: "trip" }]);
+      toast.success("Foto adicionada!");
+    } catch (error: any) {
+      console.error("Erro inesperado no upload da viagem:", error);
+      toast.error(error.message || "Erro ao enviar imagem.");
+      window.alert(error.message || "Erro ao enviar imagem.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
   };
 
-  const deletePhoto = async (photoId: string) => {
-    await supabase.from("trip_images").delete().eq("id", photoId);
-    setPhotos(prev => prev.filter(p => p.id !== photoId));
+  const deletePhoto = async (photo: TripPhoto) => {
+    if (!photoModal) return;
+
+    if (photo.source === "legacy") {
+      console.log("Payload enviado (remover foto legada):", { id: photo.id });
+      const { error } = await supabase.from("trip_images").delete().eq("id", photo.id);
+
+      if (error) {
+        console.error("Erro Supabase (remover foto legada):", error);
+        toast.error(error.message);
+        window.alert(error.message);
+        return;
+      }
+
+      console.log("Sucesso (remover foto legada):", photo.id);
+    } else {
+      const nextImages = (photoModal.images || []).filter((url) => url !== photo.image_url);
+
+      console.log("Payload enviado (remover foto da viagem):", { id: photoModal.id, images: nextImages });
+
+      const { data, error } = await supabase
+        .from("trips")
+        .update({ images: nextImages })
+        .eq("id", photoModal.id)
+        .select("id, images")
+        .single();
+
+      if (error) {
+        console.error("Erro Supabase (remover foto da viagem):", error);
+        toast.error(error.message);
+        window.alert(error.message);
+        return;
+      }
+
+      console.log("Sucesso (remover foto da viagem):", data);
+      setPhotoModal({ ...photoModal, images: nextImages });
+      setTrips((currentTrips) => currentTrips.map((trip) => trip.id === photoModal.id ? { ...trip, images: nextImages } : trip));
+    }
+
+    setPhotos(prev => prev.filter(p => p.id !== photo.id));
     toast.success("Foto removida!");
   };
 
@@ -169,7 +377,10 @@ export default function AdminTrips() {
               <Label>Descrição</Label>
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="bg-secondary/50" />
             </div>
-            <Button onClick={handleSave} className="w-full gradient-accent">{editTrip ? "Salvar Alterações" : "Criar Viagem"}</Button>
+            <TripImagePicker files={selectedImages} onChange={setSelectedImages} disabled={saving} />
+            <Button onClick={handleSave} className="w-full gradient-accent" disabled={saving}>
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : editTrip ? "Salvar Alterações" : "Criar Viagem"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -189,7 +400,7 @@ export default function AdminTrips() {
               {photos.map(p => (
                 <div key={p.id} className="relative group rounded-lg overflow-hidden">
                   <img src={p.image_url} alt="Trip" className="w-full h-32 object-cover" />
-                  <button onClick={() => deletePhoto(p.id)} className="absolute top-1 right-1 bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button onClick={() => deletePhoto(p)} className="absolute top-1 right-1 bg-destructive rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <X className="h-3 w-3 text-destructive-foreground" />
                   </button>
                 </div>
@@ -225,6 +436,7 @@ export default function AdminTrips() {
                 {new Date(trip.start_date).toLocaleDateString("pt-BR")} - {new Date(trip.end_date).toLocaleDateString("pt-BR")}
               </div>
               <p className="text-lg font-bold text-primary">R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+              <p className="text-xs text-muted-foreground">{trip.images?.length || 0} imagem(ns) salva(s)</p>
             </CardContent>
           </Card>
         ))}
