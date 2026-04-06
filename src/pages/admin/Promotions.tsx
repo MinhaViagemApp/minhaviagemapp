@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,19 +18,22 @@ interface Promotion {
 }
 
 export default function AdminPromotions() {
+  const { companyId } = useAuth();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ title: "", description: "", expires_at: "" });
 
   const fetch_ = async () => {
-    const { data } = await supabase.from("promotions").select("*").order("created_at", { ascending: false });
+    if (!companyId) return;
+    const { data } = await supabase.from("promotions").select("*").eq("company_id", companyId).order("created_at", { ascending: false });
     setPromotions(data || []);
   };
 
-  useEffect(() => { fetch_(); }, []);
+  useEffect(() => { fetch_(); }, [companyId]);
 
   const handleCreate = async () => {
-    const { error } = await supabase.from("promotions").insert(form);
+    if (!companyId) return;
+    const { error } = await supabase.from("promotions").insert({ ...form, company_id: companyId });
     if (error) { toast.error(error.message); return; }
     toast.success("Promoção criada!");
     setOpen(false);
