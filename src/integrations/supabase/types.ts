@@ -271,6 +271,7 @@ export type Database = {
       }
       promotions: {
         Row: {
+          company_id: string | null
           created_at: string
           description: string | null
           expires_at: string | null
@@ -278,6 +279,7 @@ export type Database = {
           title: string
         }
         Insert: {
+          company_id?: string | null
           created_at?: string
           description?: string | null
           expires_at?: string | null
@@ -285,13 +287,22 @@ export type Database = {
           title: string
         }
         Update: {
+          company_id?: string | null
           created_at?: string
           description?: string | null
           expires_at?: string | null
           id?: string
           title?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "promotions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trip_images: {
         Row: {
@@ -424,6 +435,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_auth_email: { Args: never; Returns: string }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
