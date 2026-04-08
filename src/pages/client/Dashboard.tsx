@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plane, Calendar, DollarSign, ChevronLeft, ChevronRight, KeyRound, Copy, CreditCard, Check, Clock } from "lucide-react";
+import { Plane, Calendar, DollarSign, ChevronLeft, ChevronRight, KeyRound, Copy, CreditCard, Check, Clock, Armchair } from "lucide-react";
 import { toast } from "sonner";
 
 interface BookingInfo {
@@ -28,6 +28,7 @@ export default function ClientDashboard() {
   const [photoIdx, setPhotoIdx] = useState<Record<string, number>>({});
   const [pixKey, setPixKey] = useState("");
   const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>({});
+  const [seatInfo, setSeatInfo] = useState<Record<string, { seat_number: number; status: string }[]>>({});
 
   useEffect(() => {
     if (!user?.email) return;
@@ -87,6 +88,20 @@ export default function ClientDashboard() {
         paidMap[p.trip_id] = (paidMap[p.trip_id] || 0) + Number(p.amount_paid);
       });
       setPaidAmounts(paidMap);
+
+      // Fetch seat info for client's trips
+      const { data: seatsData } = await supabase
+        .from("bus_seats")
+        .select("trip_id, seat_number, status, passenger_name")
+        .in("trip_id", tripIds);
+      const seatMap: Record<string, { seat_number: number; status: string }[]> = {};
+      const userEmail = user.email?.toLowerCase();
+      const userName = user.user_metadata?.name?.toLowerCase();
+      seatsData?.forEach((s: any) => {
+        if (!seatMap[s.trip_id]) seatMap[s.trip_id] = [];
+        seatMap[s.trip_id].push({ seat_number: s.seat_number, status: s.status });
+      });
+      setSeatInfo(seatMap);
 
       // Fetch PIX key from company
       const companyIds = [...new Set(clientRecords.map(c => c.company_id))];
@@ -227,6 +242,36 @@ export default function ClientDashboard() {
 
               {booking.trip_description && (
                 <p className="text-sm text-muted-foreground">{booking.trip_description}</p>
+              )}
+
+              {/* Seat info */}
+              {seatInfo[booking.trip_id] && seatInfo[booking.trip_id].length > 0 && (
+                <div className="glass rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Armchair className="h-4 w-4 text-primary" />
+                    Mapa de Poltronas
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {seatInfo[booking.trip_id]
+                      .sort((a, b) => a.seat_number - b.seat_number)
+                      .map(s => (
+                        <div
+                          key={s.seat_number}
+                          className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold ${
+                            s.status === "ocupado"
+                              ? "bg-destructive/80 text-destructive-foreground"
+                              : "bg-emerald-500/80 text-white"
+                          }`}
+                        >
+                          {s.seat_number}
+                        </div>
+                      ))}
+                  </div>
+                  <div className="flex gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Livre</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-destructive" /> Ocupado</span>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

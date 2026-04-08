@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatCard } from "@/components/StatCard";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { BusSeatSection } from "@/components/admin/BusSeatSection";
 
 export default function AdminDashboard() {
   const { companyId } = useAuth();
@@ -71,6 +72,8 @@ export default function AdminDashboard() {
           <StatCard title="Viagens Ativas" value={stats.activeTrips} icon={Activity} />
         </div>
       </div>
+
+      <BusSeatSection />
 
       {/* Clients Modal */}
       <Dialog open={modal === "clients"} onOpenChange={() => setModal(null)}>
