@@ -5,7 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plane, Calendar, DollarSign, ChevronLeft, ChevronRight, KeyRound, Copy, CreditCard, Check, Clock } from "lucide-react";
+import { Plane, Calendar, DollarSign, ChevronLeft, ChevronRight, KeyRound, Copy, CreditCard, Check, Clock, Armchair } from "lucide-react";
 import { toast } from "sonner";
 
 interface BookingInfo {
@@ -28,6 +28,7 @@ export default function ClientDashboard() {
   const [photoIdx, setPhotoIdx] = useState<Record<string, number>>({});
   const [pixKey, setPixKey] = useState("");
   const [paidAmounts, setPaidAmounts] = useState<Record<string, number>>({});
+  const [seatInfo, setSeatInfo] = useState<Record<string, { seat_number: number; status: string }[]>>({});
 
   useEffect(() => {
     if (!user?.email) return;
@@ -87,6 +88,20 @@ export default function ClientDashboard() {
         paidMap[p.trip_id] = (paidMap[p.trip_id] || 0) + Number(p.amount_paid);
       });
       setPaidAmounts(paidMap);
+
+      // Fetch seat info for client's trips
+      const { data: seatsData } = await supabase
+        .from("bus_seats")
+        .select("trip_id, seat_number, status, passenger_name")
+        .in("trip_id", tripIds);
+      const seatMap: Record<string, { seat_number: number; status: string }[]> = {};
+      const userEmail = user.email?.toLowerCase();
+      const userName = user.user_metadata?.name?.toLowerCase();
+      seatsData?.forEach((s: any) => {
+        if (!seatMap[s.trip_id]) seatMap[s.trip_id] = [];
+        seatMap[s.trip_id].push({ seat_number: s.seat_number, status: s.status });
+      });
+      setSeatInfo(seatMap);
 
       // Fetch PIX key from company
       const companyIds = [...new Set(clientRecords.map(c => c.company_id))];
