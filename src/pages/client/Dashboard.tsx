@@ -243,6 +243,36 @@ export default function ClientDashboard() {
               {booking.trip_description && (
                 <p className="text-sm text-muted-foreground">{booking.trip_description}</p>
               )}
+
+              {/* Seat info */}
+              {seatInfo[booking.trip_id] && seatInfo[booking.trip_id].length > 0 && (
+                <div className="glass rounded-xl p-4 space-y-2">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <Armchair className="h-4 w-4 text-primary" />
+                    Mapa de Poltronas
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {seatInfo[booking.trip_id]
+                      .sort((a, b) => a.seat_number - b.seat_number)
+                      .map(s => (
+                        <div
+                          key={s.seat_number}
+                          className={`w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold ${
+                            s.status === "ocupado"
+                              ? "bg-destructive/80 text-destructive-foreground"
+                              : "bg-emerald-500/80 text-white"
+                          }`}
+                        >
+                          {s.seat_number}
+                        </div>
+                      ))}
+                  </div>
+                  <div className="flex gap-3 text-xs text-muted-foreground">
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> Livre</span>
+                    <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-destructive" /> Ocupado</span>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         );
