@@ -59,6 +59,54 @@ export type Database = {
           },
         ]
       }
+      bus_seats: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          id: string
+          passenger_name: string | null
+          seat_number: number
+          status: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          passenger_name?: string | null
+          seat_number: number
+          status?: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          passenger_name?: string | null
+          seat_number?: number
+          status?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bus_seats_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bus_seats_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           company_id: string
@@ -347,6 +395,7 @@ export type Database = {
           images: string[]
           start_date: string
           total_price: number
+          total_seats: number
           updated_at: string
           user_id: string
         }
@@ -360,6 +409,7 @@ export type Database = {
           images?: string[]
           start_date: string
           total_price?: number
+          total_seats?: number
           updated_at?: string
           user_id: string
         }
@@ -373,6 +423,7 @@ export type Database = {
           images?: string[]
           start_date?: string
           total_price?: number
+          total_seats?: number
           updated_at?: string
           user_id?: string
         }
