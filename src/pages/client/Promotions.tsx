@@ -8,6 +8,7 @@ interface Promotion {
   title: string;
   description: string;
   expires_at: string;
+  image: string | null;
 }
 
 export default function ClientPromotions() {
@@ -34,7 +35,10 @@ export default function ClientPromotions() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {promotions.map((promo) => (
-          <Card key={promo.id} className="glass animate-fade-in">
+          <Card key={promo.id} className="glass animate-fade-in overflow-hidden">
+            {promo.image && (
+              <img src={promo.image} alt={promo.title} className="w-full h-40 object-cover" />
+            )}
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Tag className="h-4 w-4 text-accent" />
@@ -43,10 +47,12 @@ export default function ClientPromotions() {
             </CardHeader>
             <CardContent className="space-y-2">
               <p className="text-sm text-muted-foreground">{promo.description}</p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
-                Válida até {new Date(promo.expires_at).toLocaleDateString("pt-BR")}
-              </div>
+              {promo.expires_at && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  Válida até {new Date(promo.expires_at).toLocaleDateString("pt-BR")}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}
