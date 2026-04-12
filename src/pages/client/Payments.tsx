@@ -23,10 +23,11 @@ export default function ClientPayments() {
 
   const fetchInstallments = async () => {
     if (!user) return;
-    const { data } = await supabase
-      .from("installments")
-      .select("*, trips(destination)")
-      .order("due_date", { ascending: true });
+    const { data: trips } = await supabase.from("trips").select("id").eq("user_id", user.id);
+    const tripIds = trips?.map((t) => t.id) || [];
+    if (tripIds.length === 0) return;
+
+    const { data } = await supabase.from("installments").select("*, trips(destination)").in("trip_id", tripIds).order("due_date", { ascending: true });
     setInstallments(data || []);
   };
 

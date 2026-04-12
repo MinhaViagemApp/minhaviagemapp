@@ -1,256 +1,79 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { MessageCircle, Check, Clock, Loader2, UserPlus } from "lucide-react";
+import { Pencil, Trash2, MessageCircle, Check, Clock } from "lucide-react";
 import { toast } from "sonner";
 
-interface Booking {
+interface Client {
   id: string;
-  client_id: string;
-  trip_id: string;
-  total_value: number;
-  payment_method: string;
-  payment_status: string;
+  name: string;
+  email: string;
+  phone: string | null;
   created_at: string;
-  client_name: string;
-  client_email: string;
-  client_phone: string | null;
-  trip_destination: string;
-  trip_start_date: string;
-}
-
-interface TripOption {
-  id: string;
-  destination: string;
-  start_date: string;
-  end_date: string;
-  status: "active" | "scheduled";
+  totalDue: number;
+  totalPaid: number;
 }
 
 export default function AdminClients() {
-  const { companyId } = useAuth();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [trips, setTrips] = useState<TripOption[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [tripId, setTripId] = useState("");
-  const [totalValue, setTotalValue] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("pix");
 
-  const fetchBookings = useCallback(async () => {
-    if (!companyId) return;
-    const { data } = await supabase
-      .from("bookings")
-      .select("*, clients!inner(name, email, phone, company_id), trips!inner(destination, start_date)")
-      .eq("clients.company_id", companyId)
-      .order("created_at", { ascending: false });
+  const fetchClients = async () => {
+    const { data: profiles } = await supabase.from("profiles").select("id, name, email, phone, created_at").order("created_at", { ascending: false });
+    if (!profiles) { setClients([]); return; }
 
-    if (!data || data.length === 0) { setBookings([]); return; }
+    // Fetch all trips and installments to calculate payment status
+    const userIds = profiles.map(p => p.id);
+    const { data: trips } = await supabase.from("trips").select("id, user_id").in("user_id", userIds);
+    const tripIds = trips?.map(t => t.id) || [];
 
-    setBookings(data.map((b: any) => ({
-      ...b,
-      client_name: b.clients?.name || "—",
-      client_email: b.clients?.email || "",
-      client_phone: b.clients?.phone || null,
-      trip_destination: b.trips?.destination || "—",
-      trip_start_date: b.trips?.start_date || "",
-    })));
-  }, [companyId]);
+    let installments: any[] = [];
+    if (tripIds.length > 0) {
+      const { data } = await supabase.from("installments").select("trip_id, amount, status").in("trip_id", tripIds);
+      installments = data || [];
+    }
 
-  const fetchTrips = useCallback(async () => {
-    if (!companyId) return;
-    const { data } = await supabase
-      .from("trips")
-      .select("id, destination, start_date, end_date")
-      .eq("company_id", companyId)
-      .order("start_date", { ascending: true });
-    if (!data) return;
-    const today = new Date().toISOString().split("T")[0];
-    setTrips(data.map(t => ({
-      ...t,
-      status: t.start_date <= today && t.end_date >= today ? "active" as const : "scheduled" as const,
-    })));
-  }, [companyId]);
+    const tripUserMap = new Map(trips?.map(t => [t.id, t.user_id]) || []);
 
-  useEffect(() => { fetchBookings(); fetchTrips(); }, [fetchBookings, fetchTrips]);
+    const clientsWithPayments = profiles.map(p => {
+      const userInstallments = installments.filter(i => tripUserMap.get(i.trip_id) === p.id);
+      const totalDue = userInstallments.reduce((s, i) => s + Number(i.amount), 0);
+      const totalPaid = userInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
+      return { ...p, totalDue, totalPaid };
+    });
 
-  useEffect(() => {
-    const channel = supabase
-      .channel("bookings-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, () => fetchBookings())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchBookings]);
-
-  const formatPhone = (value: string) => {
-    const digits = value.replace(/\D/g, "").slice(0, 11);
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    setClients(clientsWithPayments);
   };
+
+  useEffect(() => { fetchClients(); }, []);
 
   const handleSave = async () => {
-    if (!companyId) {
-      const message = "Erro: empresa não identificada.";
-      console.error(message, { companyId });
-      toast.error(message);
-      window.alert(message);
-      return;
+    if (editingClient) {
+      const { error } = await supabase.from("profiles").update({ name, email, phone: phone || null }).eq("id", editingClient.id);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Cliente atualizado!");
     }
-
-    if (!email || !tripId || !totalValue) {
-      const message = "Preencha e-mail, viagem e valor total.";
-      console.error(message, { email, totalValue, tripId });
-      toast.error(message);
-      window.alert(message);
-      return;
-    }
-
-    setSaving(true);
-
-    try {
-      // Check if client exists by email + company
-      const { data: existing, error: existingError } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("email", email)
-        .eq("company_id", companyId)
-        .maybeSingle();
-
-      if (existingError) {
-        console.error("Erro Supabase (buscar cliente existente):", existingError);
-        toast.error(existingError.message);
-        window.alert(existingError.message);
-        return;
-      }
-
-      let clientId = existing?.id;
-
-      if (!clientId) {
-        const clientPayload = { name: name || email, email, phone: phone || null, company_id: companyId };
-
-        console.log("Payload enviado (cliente):", clientPayload);
-
-        const { data: newClient, error: clientErr } = await supabase
-          .from("clients")
-          .insert(clientPayload)
-          .select("id")
-          .single();
-
-        if (clientErr) {
-          console.error("Erro Supabase (cliente):", clientErr);
-          toast.error("Erro ao criar cliente: " + clientErr.message);
-          window.alert(clientErr.message);
-          return;
-        }
-
-        console.log("Sucesso (cliente):", newClient);
-        clientId = newClient.id;
-      } else if (name || phone) {
-        const updatePayload = {
-          ...(name && { name }),
-          ...(phone && { phone }),
-        };
-
-        console.log("Payload enviado (atualizar cliente):", updatePayload);
-
-        const { error: updateClientError, data: updatedClient } = await supabase
-          .from("clients")
-          .update(updatePayload)
-          .eq("id", clientId)
-          .select("id")
-          .single();
-
-        if (updateClientError) {
-          console.error("Erro Supabase (atualizar cliente):", updateClientError);
-          toast.error(updateClientError.message);
-          window.alert(updateClientError.message);
-          return;
-        }
-
-        console.log("Sucesso (atualizar cliente):", updatedClient);
-      }
-
-      const bookingPayload = {
-        client_id: clientId,
-        trip_id: tripId,
-        total_value: parseFloat(totalValue),
-        payment_method: paymentMethod,
-        payment_status: "pendente",
-      };
-
-      console.log("Payload enviado (booking):", bookingPayload);
-
-      const { data: bookingData, error: bookingErr } = await supabase
-        .from("bookings")
-        .insert(bookingPayload)
-        .select("id")
-        .single();
-
-      if (bookingErr) {
-        console.error("Erro Supabase (booking):", bookingErr);
-        if (bookingErr.message.includes("unique") || bookingErr.message.includes("duplicate")) {
-          toast.error("Este cliente já está vinculado a esta viagem.");
-          window.alert("Este cliente já está vinculado a esta viagem.");
-        } else {
-          toast.error(bookingErr.message);
-          window.alert(bookingErr.message);
-        }
-        return;
-      }
-
-      console.log("Sucesso (booking):", bookingData);
-
-      toast.success("Cliente cadastrado na viagem com sucesso!");
-      setOpen(false);
-      resetForm();
-      fetchBookings();
-    } catch (err: any) {
-      console.error("Erro inesperado ao salvar cliente:", err);
-      toast.error("Erro inesperado: " + err.message);
-      window.alert(err.message);
-    } finally {
-      setSaving(false);
-    }
+    setOpen(false);
+    setEditingClient(null);
+    setName(""); setEmail(""); setPhone("");
+    fetchClients();
   };
 
-  const resetForm = () => {
-    setName(""); setEmail(""); setPhone(""); setTripId(""); setTotalValue(""); setPaymentMethod("pix");
-  };
-
-  const togglePaymentStatus = async (booking: Booking) => {
-    const newStatus = booking.payment_status === "pendente" ? "pago" : "pendente";
-
-    console.log("Payload enviado (atualizar status pagamento):", { id: booking.id, payment_status: newStatus });
-
-    const { data, error } = await supabase
-      .from("bookings")
-      .update({ payment_status: newStatus })
-      .eq("id", booking.id)
-      .select("id, payment_status")
-      .single();
-
-    if (error) {
-      console.error("Erro Supabase (atualizar status pagamento):", error);
-      toast.error(error.message);
-      window.alert(error.message);
-      return;
-    }
-
-    console.log("Sucesso (atualizar status pagamento):", data);
-    toast.success(newStatus === "pago" ? "Marcado como pago!" : "Voltou para pendente.");
-    fetchBookings();
+  const openEdit = (client: Client) => {
+    setEditingClient(client);
+    setName(client.name || "");
+    setEmail(client.email || "");
+    setPhone(client.phone || "");
+    setOpen(true);
   };
 
   const openWhatsApp = (phoneNumber: string) => {
@@ -259,88 +82,34 @@ export default function AdminClients() {
     window.open(`https://wa.me/${num}`, "_blank");
   };
 
-  const activeTrips = trips.filter(t => t.status === "active");
-  const scheduledTrips = trips.filter(t => t.status === "scheduled");
+  const isPaid = (client: Client) => client.totalDue > 0 && client.totalPaid >= client.totalDue;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">Gerencie e vincule clientes a viagens</p>
+          <p className="text-muted-foreground">Gerencie seus clientes</p>
         </div>
-        <Button className="gradient-accent" onClick={() => { resetForm(); setOpen(true); }}>
-          <UserPlus className="mr-2 h-4 w-4" /> Cadastrar Cliente
-        </Button>
       </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="glass-strong max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Cadastrar Cliente na Viagem</DialogTitle></DialogHeader>
+        <DialogContent className="glass-strong">
+          <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Nome do Cliente</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" className="bg-secondary/50" />
+              <Label>Nome</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
-              <Label>E-mail *</Label>
-              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@exemplo.com" className="bg-secondary/50" required />
+              <Label>Email</Label>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
-              <Label>Telefone (WhatsApp)</Label>
-              <Input value={phone} onChange={(e) => setPhone(formatPhone(e.target.value))} placeholder="(11) 99999-9999" className="bg-secondary/50" />
+              <Label>Telefone</Label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" className="bg-secondary/50" />
             </div>
-            <div className="space-y-2">
-              <Label>Viagem *</Label>
-              <Select value={tripId} onValueChange={setTripId}>
-                <SelectTrigger className="bg-secondary/50"><SelectValue placeholder="Selecione a viagem" /></SelectTrigger>
-                <SelectContent>
-                  {activeTrips.length > 0 && (
-                    <>
-                      <div className="px-2 py-1.5 text-xs font-semibold text-primary">🟢 Viagens Ativas</div>
-                      {activeTrips.map(t => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.destination} — {new Date(t.start_date).toLocaleDateString("pt-BR")}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
-                  {scheduledTrips.length > 0 && (
-                    <>
-                      <div className="px-2 py-1.5 text-xs font-semibold text-accent mt-1">📅 Viagens Programadas</div>
-                      {scheduledTrips.map(t => (
-                        <SelectItem key={t.id} value={t.id}>
-                          {t.destination} — {new Date(t.start_date).toLocaleDateString("pt-BR")}
-                        </SelectItem>
-                      ))}
-                    </>
-                  )}
-                  {trips.length === 0 && (
-                    <div className="px-2 py-4 text-sm text-muted-foreground text-center">Nenhuma viagem cadastrada</div>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Valor Total (R$) *</Label>
-                <Input type="number" min="0" step="0.01" value={totalValue} onChange={(e) => setTotalValue(e.target.value)} placeholder="0,00" className="bg-secondary/50" />
-              </div>
-              <div className="space-y-2">
-                <Label>Forma de Pagamento</Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger className="bg-secondary/50"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pix">💳 Pix</SelectItem>
-                    <SelectItem value="card">💳 Cartão</SelectItem>
-                    <SelectItem value="boleto">📄 Boleto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button onClick={handleSave} className="w-full gradient-accent" disabled={saving}>
-              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</> : "Cadastrar Cliente"}
-            </Button>
+            <Button onClick={handleSave} className="w-full gradient-accent">Salvar</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -349,63 +118,49 @@ export default function AdminClients() {
         <Table>
           <TableHeader>
             <TableRow className="border-border/50">
-              <TableHead>Cliente</TableHead>
-              <TableHead>E-mail</TableHead>
-              <TableHead>Viagem</TableHead>
-              <TableHead>Valor</TableHead>
-              <TableHead>Pagamento</TableHead>
+              <TableHead>Nome</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Telefone</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bookings.map((b) => (
-              <TableRow key={b.id} className="border-border/50">
-                <TableCell className="font-medium">{b.client_name}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{b.client_email}</TableCell>
+            {clients.map((client) => (
+              <TableRow key={client.id} className="border-border/50">
+                <TableCell className="font-medium">{client.name || "—"}</TableCell>
+                <TableCell>{client.email}</TableCell>
+                <TableCell>{client.phone || "—"}</TableCell>
                 <TableCell>
-                  <span className="text-sm">{b.trip_destination}</span>
-                  {b.trip_start_date && (
-                    <span className="block text-xs text-muted-foreground">
-                      {new Date(b.trip_start_date).toLocaleDateString("pt-BR")}
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className="font-medium">
-                  R$ {Number(b.total_value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="text-xs capitalize">
-                    {b.payment_method === "pix" ? "Pix" : b.payment_method === "card" ? "Cartão" : "Boleto"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  <button onClick={() => togglePaymentStatus(b)} className="transition-all duration-200">
-                    {b.payment_status === "pago" ? (
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0 cursor-pointer hover:bg-emerald-500/30">
+                  {client.totalDue > 0 ? (
+                    isPaid(client) ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0">
                         <Check className="h-3 w-3 mr-1" /> Pago
                       </Badge>
                     ) : (
-                      <Badge className="bg-primary/20 text-primary border-0 cursor-pointer hover:bg-primary/30">
+                      <Badge className="bg-primary/20 text-primary border-0">
                         <Clock className="h-3 w-3 mr-1" /> Pendente
                       </Badge>
-                    )}
-                  </button>
+                    )
+                  ) : (
+                    <span className="text-muted-foreground text-sm">—</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right space-x-1">
-                  {b.client_phone && (
-                    <Button variant="ghost" size="icon" onClick={() => openWhatsApp(b.client_phone!)} title="WhatsApp">
+                  {client.phone && (
+                    <Button variant="ghost" size="icon" onClick={() => openWhatsApp(client.phone!)} title="WhatsApp">
                       <MessageCircle className="h-4 w-4 text-emerald-400" />
                     </Button>
                   )}
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(client)}>
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
-            {bookings.length === 0 && (
+            {clients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                  Nenhum cliente cadastrado. Clique em "Cadastrar Cliente" para começar.
-                </TableCell>
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum cliente cadastrado</TableCell>
               </TableRow>
             )}
           </TableBody>

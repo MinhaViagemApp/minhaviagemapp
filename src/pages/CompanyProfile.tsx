@@ -9,194 +9,72 @@ import { toast } from "sonner";
 import { Building2, Upload, Loader2, KeyRound } from "lucide-react";
 
 export default function CompanyProfile() {
-  const { user, companyId } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
-    name: "",
-    cnpj: "",
-    address: "",
-    phone: "",
-    logo_url: "",
+    business_name: "",
+    business_cnpj: "",
+    business_address: "",
+    business_phone: "",
+    business_logo_url: "",
     pix_key: "",
   });
 
   useEffect(() => {
-    if (!companyId) { setLoading(false); return; }
-    const fetchCompany = async () => {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("name, cnpj, address, phone, logo_url, pix_key")
-        .eq("id", companyId)
+    if (!user) return;
+    const fetchProfile = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("business_name, business_cnpj, business_address, business_phone, business_logo_url, pix_key")
+        .eq("id", user.id)
         .single();
-
-      if (error) {
-        console.error("Erro Supabase (buscar empresa):", error);
-      }
-
       if (data) {
         setForm({
-          name: data.name || "",
-          cnpj: data.cnpj || "",
-          address: data.address || "",
-          phone: data.phone || "",
-          logo_url: data.logo_url || "",
-          pix_key: data.pix_key || "",
+          business_name: data.business_name || "",
+          business_cnpj: data.business_cnpj || "",
+          business_address: data.business_address || "",
+          business_phone: data.business_phone || "",
+          business_logo_url: data.business_logo_url || "",
+          pix_key: (data as any).pix_key || "",
         });
       }
       setLoading(false);
     };
-    fetchCompany();
-  }, [companyId]);
+    fetchProfile();
+  }, [user]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!user) {
-      const message = "Erro: usuário não autenticado.";
-      console.error(message);
-      toast.error(message);
-      window.alert(message);
-      return;
-    }
-
-    const companyName = form.name.trim();
-
-    if (!companyName) {
-      const message = "Informe o nome da empresa antes de finalizar.";
-      console.error(message);
-      toast.error(message);
-      window.alert(message);
-      return;
-    }
-
+    if (!user) return;
     setSaving(true);
-
-    try {
-      if (!companyId) {
-        const slugBase = (companyName || user.email?.split("@")[0] || "empresa")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^a-zA-Z0-9]+/g, "-")
-          .replace(/^-+|-+$/g, "")
-          .toLowerCase();
-
-        const companyPayload = {
-          address: form.address || null,
-          cnpj: form.cnpj || null,
-          logo_url: form.logo_url || null,
-          name: companyName,
-          phone: form.phone || null,
-          pix_key: form.pix_key || null,
-          slug: `${slugBase || "empresa"}-${Date.now()}`,
-        };
-
-        console.log("Payload enviado (empresa):", companyPayload);
-
-        const { data: newCompany, error: createError } = await supabase
-          .from("companies")
-          .insert(companyPayload)
-          .select("id")
-          .single();
-
-        if (createError) {
-          console.error("Erro Supabase (empresa):", createError);
-          toast.error(createError.message);
-          window.alert(createError.message);
-          return;
-        }
-
-        console.log("Sucesso (empresa):", newCompany);
-
-        const membershipPayload = {
-          user_id: user.id,
-          company_id: newCompany.id,
-        };
-
-        console.log("Payload enviado (user_companies):", membershipPayload);
-
-        const { error: membershipError } = await supabase.from("user_companies").insert(membershipPayload);
-
-        if (membershipError) {
-          console.error("Erro Supabase (user_companies):", membershipError);
-          toast.error(membershipError.message);
-          window.alert(membershipError.message);
-          return;
-        }
-
-        console.log("Sucesso (user_companies):", membershipPayload);
-        toast.success("Empresa criada com sucesso!");
-        window.location.reload();
-        return;
-      }
-
-      const payload = {
-        name: companyName,
-        cnpj: form.cnpj || null,
-        address: form.address || null,
-        phone: form.phone || null,
-        logo_url: form.logo_url || null,
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        business_name: form.business_name || null,
+        business_cnpj: form.business_cnpj || null,
+        business_address: form.business_address || null,
+        business_phone: form.business_phone || null,
+        business_logo_url: form.business_logo_url || null,
         pix_key: form.pix_key || null,
-      };
-
-      console.log("Payload enviado (atualizar empresa):", payload);
-
-      const { data, error } = await supabase
-        .from("companies")
-        .update(payload)
-        .eq("id", companyId)
-        .select("id")
-        .single();
-
-      if (error) {
-        console.error("Erro Supabase (atualizar empresa):", error);
-        toast.error(error.message);
-        window.alert(error.message);
-        return;
-      }
-
-      console.log("Sucesso (atualizar empresa):", data);
-      toast.success("Dados atualizados com sucesso!");
-    } finally {
-      setSaving(false);
-    }
+      } as any)
+      .eq("id", user.id);
+    setSaving(false);
+    if (error) { toast.error("Erro ao salvar: " + error.message); }
+    else { toast.success("Dados atualizados com sucesso!"); }
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    const ownerId = companyId || user?.id;
-
-    if (!file || !ownerId) return;
-
+    if (!file || !user) return;
     setUploading(true);
-
-    const ext = file.name.split(".").pop() || "png";
-    const filePath = `${ownerId}/logo-${Date.now()}.${ext}`;
-
-    console.log("Payload enviado (upload logo):", {
-      bucket: "logos",
-      fileName: file.name,
-      filePath,
-      size: file.size,
-      type: file.type,
-    });
-
+    const ext = file.name.split(".").pop();
+    const filePath = `${user.id}/logo.${ext}`;
     const { error: uploadError } = await supabase.storage.from("logos").upload(filePath, file, { upsert: true });
-
-    if (uploadError) {
-      console.error("Erro Supabase (upload logo):", uploadError);
-      toast.error("Erro no upload: " + uploadError.message);
-      window.alert(uploadError.message);
-      setUploading(false);
-      return;
-    }
-
+    if (uploadError) { toast.error("Erro no upload: " + uploadError.message); setUploading(false); return; }
     const { data: urlData } = supabase.storage.from("logos").getPublicUrl(filePath);
-
-    console.log("Sucesso (upload logo):", urlData);
-
-    setForm((prev) => ({ ...prev, logo_url: urlData.publicUrl }));
+    setForm((prev) => ({ ...prev, business_logo_url: urlData.publicUrl }));
     setUploading(false);
     toast.success("Logo enviada! Salve para confirmar.");
   };
@@ -222,8 +100,8 @@ export default function CompanyProfile() {
             <div className="space-y-2">
               <Label>Logomarca</Label>
               <div className="flex items-center gap-4">
-                {form.logo_url ? (
-                  <img src={form.logo_url} alt="Logo" className="h-16 w-16 rounded-xl object-contain border border-border bg-background p-1" />
+                {form.business_logo_url ? (
+                  <img src={form.business_logo_url} alt="Logo" className="h-16 w-16 rounded-xl object-contain border border-border bg-background p-1" />
                 ) : (
                   <div className="h-16 w-16 rounded-xl border border-dashed border-border flex items-center justify-center">
                     <Building2 className="h-6 w-6 text-muted-foreground" />
@@ -238,20 +116,20 @@ export default function CompanyProfile() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Nome da Empresa</Label>
-              <Input id="name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Minha Agência de Viagens" className="bg-secondary/50" />
+              <Label htmlFor="business_name">Nome da Empresa</Label>
+              <Input id="business_name" value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} placeholder="Minha Agência de Viagens" className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cnpj">CNPJ</Label>
-              <Input id="cnpj" value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} placeholder="00.000.000/0000-00" className="bg-secondary/50" />
+              <Label htmlFor="business_cnpj">CNPJ</Label>
+              <Input id="business_cnpj" value={form.business_cnpj} onChange={(e) => setForm({ ...form, business_cnpj: e.target.value })} placeholder="00.000.000/0000-00" className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="address">Endereço</Label>
-              <Input id="address" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Rua Exemplo, 123 - Cidade/UF" className="bg-secondary/50" />
+              <Label htmlFor="business_address">Endereço</Label>
+              <Input id="business_address" value={form.business_address} onChange={(e) => setForm({ ...form, business_address: e.target.value })} placeholder="Rua Exemplo, 123 - Cidade/UF" className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Telefone</Label>
-              <Input id="phone" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(11) 99999-9999" className="bg-secondary/50" />
+              <Label htmlFor="business_phone">Telefone</Label>
+              <Input id="business_phone" value={form.business_phone} onChange={(e) => setForm({ ...form, business_phone: e.target.value })} placeholder="(11) 99999-9999" className="bg-secondary/50" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="pix_key" className="flex items-center gap-2"><KeyRound className="h-4 w-4 text-primary" />Chave PIX</Label>
@@ -259,7 +137,7 @@ export default function CompanyProfile() {
               <p className="text-xs text-muted-foreground">Essa chave será exibida para os clientes no painel de pagamentos.</p>
             </div>
             <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={saving}>
-              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : companyId ? "Salvar dados" : "Finalizar cadastro da empresa"}
+              {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Salvando...</> : "Salvar dados"}
             </Button>
           </form>
         </CardContent>
