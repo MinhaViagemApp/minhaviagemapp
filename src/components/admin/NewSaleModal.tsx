@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { QrCode, Banknote, CreditCard, FileText, Plane, UserPlus } from "lucide-react";
+import { QrCode, Banknote, CreditCard, FileText, Plane, UserPlus, X, Armchair } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 import { BusSeatPicker } from "./BusSeatPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -18,7 +19,7 @@ interface Props {
 export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
   const [trips, setTrips] = useState<any[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [saleSeat, setSaleSeat] = useState<string>("");
+  const [selectedSeats, setSelectedSeats] = useState<string[]>([]); // múltiplas poltronas
   const [saleSeatData, setSaleSeatData] = useState<any[]>([]);
   
   const [form, setForm] = useState({
@@ -49,11 +50,8 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
 
   const handleTripChange = async (tripId: string) => {
     setForm({ ...form, trip_id: tripId });
-    setSaleSeat("");
-    if (!tripId) {
-      setSaleSeatData([]);
-      return;
-    }
+    setSelectedSeats([]);
+    if (!tripId) { setSaleSeatData([]); return; }
     try {
       const data = await mcpService.getSeats(tripId);
       setSaleSeatData(data.map(s => ({
@@ -63,34 +61,49 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         occupantName: s.user_id ? "Ocupado" : undefined,
         floor: parseInt(s.seat_number) <= 44 ? "superior" : "inferior"
       })));
-    } catch (error) {
+    } catch {
       toast.error("Erro ao carregar poltronas.");
     }
   };
 
-  const formatCPF = (value: string) => {
-    return value
-      .replace(/\D/g, "")
+  // Toggles a seat in/out of the selected list
+  const handleSeatClick = (seatNum: string) => {
+    const seatInfo = saleSeatData.find(s => s.number === seatNum);
+    if (seatInfo?.status === 'occupied') {
+      toast.error(`Poltrona ${seatNum} já está ocupada!`);
+      return;
+    }
+    setSelectedSeats(prev =>
+      prev.includes(seatNum)
+        ? prev.filter(s => s !== seatNum) // deselect
+        : [...prev, seatNum]              // select
+    );
+  };
+
+  // Calcula o valor total = preço da viagem × qtd de poltronas
+  const selectedTrip = trips.find(t => t.id === form.trip_id);
+  const qtdSeats = selectedSeats.length || 1;
+  const totalPrice = selectedTrip ? selectedTrip.total_price * Math.max(selectedSeats.length, 1) : 0;
+  const pricePerInstallment = totalPrice / parseInt(form.installments || "1");
+
+  const formatCPF = (value: string) =>
+    value.replace(/\D/g, "")
       .replace(/(\d{3})(\d)/, "$1.$2")
       .replace(/(\d{3})(\d)/, "$1.$2")
       .replace(/(\d{3})(\d{1,2})/, "$1-$2")
       .replace(/(-\d{2})\d+?$/, "$1");
-  };
 
-  const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm({ ...form, cpf: formatCPF(e.target.value) });
-  };
+  const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
   const handleSave = async () => {
-    if (!form.name || !form.email || !form.trip_id || !saleSeat || !form.installments) {
-      toast.error("Preencha todos os campos obrigatórios (Nome, Email, Viagem, Poltrona e Parcelas).");
+    if (!form.name || !form.email || !form.trip_id || selectedSeats.length === 0) {
+      toast.error("Preencha: Nome, Email, Viagem e selecione ao menos 1 poltrona.");
       return;
     }
 
     setIsSaving(true);
     try {
       // 1. Criar ou buscar perfil
-      // Como não temos auth de usuário aqui, vamos gerar um ID ou buscar pelo email
       const { data: existingProfile } = await supabase
         .from("profiles")
         .select("id")
@@ -111,7 +124,6 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         });
         if (profileError) throw profileError;
       } else {
-        // Atualiza perfil existente
         await supabase.from("profiles").update({
           name: form.name,
           cpf: form.cpf || null,
@@ -120,39 +132,38 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         }).eq("id", userId);
       }
 
-      // 2. Reservar a Poltrona através do MCP Service
-      const targetSeat = saleSeatData.find(s => s.number === saleSeat);
-      if (!targetSeat) throw new Error("Poltrona não encontrada.");
+      // 2. Reservar TODAS as poltronas selecionadas
+      for (const seatNum of selectedSeats) {
+        const targetSeat = saleSeatData.find(s => s.number === seatNum);
+        if (!targetSeat) throw new Error(`Poltrona ${seatNum} não encontrada.`);
+        await mcpService.reserveSeat(targetSeat.id, userId);
+      }
 
-      await mcpService.reserveSeat(targetSeat.id, userId);
-
-      // 3. Gerar as Parcelas
-      const trip = trips.find(t => t.id === form.trip_id);
-      if (trip) {
+      // 3. Gerar Parcelas com base no preço × qtd poltronas
+      if (selectedTrip) {
         const qty = parseInt(form.installments) || 1;
-        const perAmount = trip.total_price / qty;
-        const installmentsToInsert = [];
+        const perAmount = totalPrice / qty; // já considera qtd poltronas
         const today = new Date();
-        
-        for (let i = 1; i <= qty; i++) {
+
+        const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
           const dueDate = new Date(today);
-          dueDate.setMonth(today.getMonth() + (i - 1));
-          
-          installmentsToInsert.push({
-            trip_id: trip.id,
+          dueDate.setMonth(today.getMonth() + i);
+          return {
+            trip_id: selectedTrip.id,
             user_id: userId,
-            installment_number: i,
+            installment_number: i + 1,
             amount: perAmount,
             status: "pendente",
             payment_method: form.payment_method,
             due_date: dueDate.toISOString()
-          });
-        }
+          };
+        });
+
         const { error: instError } = await supabase.from("installments").insert(installmentsToInsert);
         if (instError) throw instError;
       }
 
-      toast.success("✅ Venda e Cliente registrados com sucesso!");
+      toast.success(`✅ ${selectedSeats.length} poltrona(s) reservada(s) com sucesso!`);
       onSuccess?.();
       onOpenChange(false);
       resetForm();
@@ -164,66 +175,39 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
   };
 
   const resetForm = () => {
-    setForm({
-      name: "", email: "", cpf: "", phone: "", address: "", trip_id: "", payment_method: "pix", installments: "1"
-    });
-    setSaleSeat("");
+    setForm({ name: "", email: "", cpf: "", phone: "", address: "", trip_id: "", payment_method: "pix", installments: "1" });
+    setSelectedSeats([]);
     setSaleSeatData([]);
   };
+
+  // Cria uma versão do seatData refletindo quais poltronas já foram selecionadas nesta sessão
+  const seatDataWithSelection = saleSeatData.map(s => ({
+    ...s,
+    status: selectedSeats.includes(s.number) ? 'selected' : s.status
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="glass-strong max-w-4xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl text-primary font-black flex items-center gap-2">
-            <UserPlus className="h-6 w-6" /> Adicionar Cliente & Venda
+            <UserPlus className="h-6 w-6" /> Adicionar Cliente &amp; Venda
           </DialogTitle>
         </DialogHeader>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 py-4">
-          {/* Col 1: Dados do Cliente e Pagamento */}
+          {/* Col 1 */}
           <div className="space-y-6">
             <div className="bg-secondary/30 p-4 rounded-xl border border-border/50">
               <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-muted-foreground">1. Dados do Cliente</h3>
               <div className="space-y-3">
-                <input 
-                  type="text" 
-                  placeholder="Nome Completo *" 
-                  value={form.name} 
-                  onChange={e => setForm({...form, name: e.target.value})} 
-                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm" 
-                />
-                <input 
-                  type="email" 
-                  placeholder="E-mail *" 
-                  value={form.email} 
-                  onChange={e => setForm({...form, email: e.target.value})} 
-                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm" 
-                />
+                <input type="text" placeholder="Nome Completo *" value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm" />
+                <input type="email" placeholder="E-mail *" value={form.email} onChange={e => setForm({...form, email: e.target.value})} className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm" />
                 <div className="flex gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="WhatsApp" 
-                    value={form.phone} 
-                    onChange={e => setForm({...form, phone: e.target.value})} 
-                    className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm" 
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="CPF (Opcional)" 
-                    value={form.cpf} 
-                    onChange={handleCPFChange} 
-                    maxLength={14}
-                    className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm" 
-                  />
+                  <input type="text" placeholder="WhatsApp" value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm" />
+                  <input type="text" placeholder="CPF (Opcional)" value={form.cpf} onChange={e => setForm({...form, cpf: formatCPF(e.target.value)})} maxLength={14} className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm" />
                 </div>
-                <input 
-                  type="text" 
-                  placeholder="Endereço Completo (Opcional)" 
-                  value={form.address} 
-                  onChange={e => setForm({...form, address: e.target.value})} 
-                  className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm" 
-                />
+                <input type="text" placeholder="Endereço Completo (Opcional)" value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="w-full bg-background border border-input rounded-md px-3 py-2 text-sm" />
               </div>
             </div>
 
@@ -236,12 +220,8 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                   { id: "cartao", icon: CreditCard, label: "Cartão de Crédito" },
                   { id: "boleto", icon: FileText, label: "Boleto" }
                 ].map(pm => (
-                  <button 
-                    key={pm.id} 
-                    type="button"
-                    onClick={() => setForm({...form, payment_method: pm.id})} 
-                    className={`flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all ${form.payment_method === pm.id ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 text-muted-foreground hover:bg-secondary'}`}
-                  >
+                  <button key={pm.id} type="button" onClick={() => setForm({...form, payment_method: pm.id})}
+                    className={`flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all ${form.payment_method === pm.id ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 text-muted-foreground hover:bg-secondary'}`}>
                     <pm.icon className="h-5 w-5 mb-1" />
                     <span className="text-[10px] font-bold uppercase text-center leading-tight">{pm.label}</span>
                   </button>
@@ -254,57 +234,93 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                   <SelectContent>
                     {[...Array(12)].map((_, i) => (
                       <SelectItem key={i+1} value={(i+1).toString()}>
-                        {i+1}x Parcela{i > 0 ? 's' : ''}
+                        {i+1}x Parcela{i > 0 ? 's' : ''}{selectedTrip ? ` — ${fmt(totalPrice / (i+1))}` : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Resumo do valor */}
+              {selectedTrip && (
+                <div className="mt-4 bg-black/20 rounded-xl p-3 border border-white/10 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Preço por poltrona:</span>
+                    <span className="font-bold">{fmt(selectedTrip.total_price)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Poltronas selecionadas:</span>
+                    <span className="font-bold text-primary">{Math.max(selectedSeats.length, 0)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-white/10 pt-1 mt-1">
+                    <span className="font-bold">Total:</span>
+                    <span className="font-black text-emerald-400 text-base">{fmt(totalPrice)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{form.installments}x de:</span>
+                    <span className="font-bold">{fmt(pricePerInstallment)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Col 2: Viagem e Poltrona */}
+          {/* Col 2 */}
           <div className="space-y-6">
             <div className="bg-secondary/30 p-4 rounded-xl border border-border/50 h-full flex flex-col">
-              <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-muted-foreground">3. Viagem e Assento</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-muted-foreground">3. Viagem e Poltronas</h3>
               <Select value={form.trip_id} onValueChange={handleTripChange}>
                 <SelectTrigger className="bg-background h-12 text-md font-bold text-primary mb-4">
                   <SelectValue placeholder="Selecione a Viagem *" />
                 </SelectTrigger>
                 <SelectContent>
                   {trips.map(t => (
-                    <SelectItem key={t.id} value={t.id}>{t.destination} - {new Date(t.start_date).toLocaleDateString()}</SelectItem>
+                    <SelectItem key={t.id} value={t.id}>{t.destination} — {new Date(t.start_date).toLocaleDateString("pt-BR")}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
+              {/* Poltronas selecionadas */}
+              {selectedSeats.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {selectedSeats.map(s => (
+                    <Badge key={s} className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 gap-1 cursor-pointer hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/30 transition-all"
+                      onClick={() => setSelectedSeats(prev => prev.filter(p => p !== s))}>
+                      <Armchair className="h-3 w-3" /> Nº {s} <X className="h-3 w-3 ml-1" />
+                    </Badge>
+                  ))}
+                  <span className="text-xs text-muted-foreground self-center">
+                    (clique para remover)
+                  </span>
+                </div>
+              )}
+
               {form.trip_id ? (
-                <div className="flex-1 border rounded-lg bg-background p-2 overflow-x-auto min-h-[300px]">
-                  <p className="text-center text-xs text-muted-foreground mb-4 uppercase mt-2">Escolha a poltrona</p>
+                <div className="flex-1 border rounded-lg bg-background p-2 overflow-x-auto min-h-[280px]">
+                  <p className="text-center text-xs text-muted-foreground mb-3 uppercase mt-2">
+                    Clique para selecionar/deselecionar • Verde escuro = selecionada
+                  </p>
                   <div className="scale-75 origin-top mx-auto w-fit">
-                    <BusSeatPicker 
-                      seats={saleSeatData} 
-                      onSeatClick={(s) => {
-                        if (saleSeatData.find(st => st.number === s)?.status === 'occupied') {
-                          toast.error("Poltrona já ocupada!"); 
-                          return;
-                        }
-                        setSaleSeat(s);
-                      }} 
+                    <BusSeatPicker
+                      seats={seatDataWithSelection}
+                      onSeatClick={handleSeatClick}
                     />
                   </div>
                 </div>
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border/50 rounded-lg p-6 opacity-50">
                   <Plane className="h-8 w-8 mb-2" />
-                  <p className="text-sm text-center">Selecione uma viagem para escolher o assento.</p>
+                  <p className="text-sm text-center">Selecione uma viagem para escolher as poltronas.</p>
                 </div>
               )}
 
-              {saleSeat && (
-                <div className="mt-4 bg-emerald-500/20 text-emerald-400 p-3 rounded-lg flex items-center justify-between font-bold border border-emerald-500/30">
-                  <span>Poltrona:</span>
-                  <span className="text-xl">Nº {saleSeat}</span>
+              {selectedSeats.length > 0 && (
+                <div className="mt-3 bg-emerald-500/10 text-emerald-400 p-3 rounded-lg flex items-center justify-between font-bold border border-emerald-500/20">
+                  <span className="flex items-center gap-2">
+                    <Armchair className="h-4 w-4" />
+                    {selectedSeats.length} poltrona{selectedSeats.length > 1 ? 's' : ''} selecionada{selectedSeats.length > 1 ? 's' : ''}:
+                  </span>
+                  <span>{selectedSeats.map(s => `Nº ${s}`).join(", ")}</span>
                 </div>
               )}
             </div>
@@ -313,8 +329,8 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
 
         <div className="flex justify-end gap-2 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={isSaving} className="gradient-accent px-8">
-            {isSaving ? "Salvando..." : "Salvar Cliente e Venda"}
+          <Button onClick={handleSave} disabled={isSaving || selectedSeats.length === 0} className="gradient-accent px-8">
+            {isSaving ? "Salvando..." : `Confirmar ${selectedSeats.length > 0 ? `(${selectedSeats.length} poltrona${selectedSeats.length > 1 ? 's' : ''})` : ''}`}
           </Button>
         </div>
       </DialogContent>
