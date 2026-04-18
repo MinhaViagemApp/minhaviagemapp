@@ -22,6 +22,7 @@ interface Trip {
   preview_image?: string;
   is_public?: boolean;
   max_installments_card?: number;
+  credit_card_fee_percent?: number;
 }
 
 interface Client { id: string; name: string }
@@ -35,7 +36,8 @@ const emptyForm = {
   user_id: "", 
   installments: "1",
   is_public: true,
-  max_installments_card: "12"
+  max_installments_card: "12",
+  credit_card_fee_percent: "0"
 };
 
 export default function AdminTrips() {
@@ -83,7 +85,8 @@ export default function AdminTrips() {
       user_id: trip.user_id || "",
       installments: "1",
       is_public: trip.is_public || false,
-      max_installments_card: String(trip.max_installments_card || 12)
+      max_installments_card: String(trip.max_installments_card || 12),
+      credit_card_fee_percent: String(trip.credit_card_fee_percent || 0)
     });
     setOpen(true);
   };
@@ -95,9 +98,10 @@ export default function AdminTrips() {
       end_date: form.end_date,
       total_price: parseFloat(form.total_price),
       description: form.description,
-      user_id: form.user_id || null, // Permite nulo para viagens públicas
+      user_id: form.user_id || null,
       is_public: form.is_public,
-      max_installments_card: parseInt(form.max_installments_card) || 12
+      max_installments_card: parseInt(form.max_installments_card) || 12,
+      credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0
     };
 
     if (editTrip) {
@@ -234,9 +238,34 @@ export default function AdminTrips() {
                 </div>
               )}
               <div className="space-y-2">
-                <Label>Máx. Parcelas Cartão</Label>
+                <Label>Máx. Parcelas Cartão (até 24x)</Label>
                 <Input type="number" min="1" max="24" value={form.max_installments_card} onChange={(e) => setForm({ ...form, max_installments_card: e.target.value })} className="bg-secondary/50" />
               </div>
+            </div>
+            {/* Taxa do Cartão */}
+            <div className="bg-secondary/30 p-3 rounded-lg border border-yellow-500/20 space-y-2">
+              <Label className="flex items-center gap-2">
+                <span>💳 Taxa do Cartão de Crédito (%)</span>
+              </Label>
+              <div className="flex items-center gap-3">
+                <Input 
+                  type="number" 
+                  min="0" 
+                  max="20" 
+                  step="0.1"
+                  value={form.credit_card_fee_percent} 
+                  onChange={(e) => setForm({ ...form, credit_card_fee_percent: e.target.value })} 
+                  className="bg-secondary/50 w-28" 
+                  placeholder="Ex: 2.5"
+                />
+                <span className="text-muted-foreground text-sm">%</span>
+                {parseFloat(form.credit_card_fee_percent) > 0 && form.total_price && (
+                  <span className="text-yellow-400 text-xs bg-yellow-500/10 px-2 py-1 rounded border border-yellow-500/30">
+                    Valor no cartão: R$ {(parseFloat(form.total_price) * (1 + parseFloat(form.credit_card_fee_percent) / 100)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Percentual acrescido ao parcelamento no cartão para cobrir taxas da maquininha.</p>
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>

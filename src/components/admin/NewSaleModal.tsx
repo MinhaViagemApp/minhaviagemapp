@@ -80,11 +80,47 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
     );
   };
 
-  // Calcula o valor total = preço da viagem × qtd de poltronas
+  // Dados da viagem selecionada
   const selectedTrip = trips.find(t => t.id === form.trip_id);
-  const qtdSeats = selectedSeats.length || 1;
-  const totalPrice = selectedTrip ? selectedTrip.total_price * Math.max(selectedSeats.length, 1) : 0;
+  const qtdSeats = Math.max(selectedSeats.length, 1);
+
+  // --- Regras de parcelamento por método ---
+  // Boleto: máximo = meses até a data da viagem (inclusive mês atual)
+  const maxInstallmentsBoleto = (() => {
+    if (!selectedTrip?.start_date) return 12;
+    const hoje = new Date();
+    const partida = new Date(selectedTrip.start_date);
+    const meses = (partida.getFullYear() - hoje.getFullYear()) * 12 + (partida.getMonth() - hoje.getMonth());
+    return Math.max(1, meses + 1); // inclui o mês atual
+  })();
+
+  // Cartão: máximo definido pelo admin (até 24x)
+  const maxInstallmentsCard = Math.min(parseInt(selectedTrip?.max_installments_card || "12") || 12, 24);
+
+  // Máximo de parcelas para o método atual
+  const maxInstallments = form.payment_method === "boleto"
+    ? maxInstallmentsBoleto
+    : form.payment_method === "cartao"
+    ? maxInstallmentsCard
+    : 24; // Pix e Dinheiro: livre até 24x
+
+  // Taxa do cartão: acrescida ao total quando método é cartão
+  const cardFeePercent = form.payment_method === "cartao"
+    ? parseFloat(selectedTrip?.credit_card_fee_percent || "0") || 0
+    : 0;
+
+  // Preço base = preço da viagem × quantidade de poltronas
+  const basePrice = selectedTrip ? selectedTrip.total_price * qtdSeats : 0;
+  // Total final = base + taxa do cartão (se houver)
+  const totalPrice = basePrice * (1 + cardFeePercent / 100);
   const pricePerInstallment = totalPrice / parseInt(form.installments || "1");
+
+  // Quando mudar método de pagamento, resetar parcelas para não ultrapassar o máximo
+  const handlePaymentMethodChange = (method: string) => {
+    const currentInst = parseInt(form.installments);
+    const newMax = method === "boleto" ? maxInstallmentsBoleto : method === "cartao" ? maxInstallmentsCard : 24;
+    setForm({ ...form, payment_method: method, installments: String(Math.min(currentInst, newMax)) });
+  };
 
   const formatCPF = (value: string) =>
     value.replace(/\D/g, "")
@@ -214,13 +250,13 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
             <div className="bg-secondary/30 p-4 rounded-xl border border-border/50">
               <h3 className="text-sm font-bold uppercase tracking-wider mb-4 text-muted-foreground">2. Pagamento</h3>
               <div className="grid grid-cols-4 gap-2 mb-4">
-                {[
+                              {[
                   { id: "dinheiro", icon: Banknote, label: "Dinheiro" },
                   { id: "pix", icon: QrCode, label: "Pix" },
                   { id: "cartao", icon: CreditCard, label: "Cartão de Crédito" },
                   { id: "boleto", icon: FileText, label: "Boleto" }
                 ].map(pm => (
-                  <button key={pm.id} type="button" onClick={() => setForm({...form, payment_method: pm.id})}
+                  <button key={pm.id} type="button" onClick={() => handlePaymentMethodChange(pm.id)}
                     className={`flex flex-col items-center justify-center p-2 rounded-lg border-2 transition-all ${form.payment_method === pm.id ? 'border-primary bg-primary/10 text-primary' : 'border-border/50 text-muted-foreground hover:bg-secondary'}`}>
                     <pm.icon className="h-5 w-5 mb-1" />
                     <span className="text-[10px] font-bold uppercase text-center leading-tight">{pm.label}</span>
@@ -228,18 +264,37 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                 ))}
               </div>
               <div className="space-y-2">
-                <Label>Quantidade de Parcelas</Label>
+                <Label className="flex items-center justify-between">
+                  <span>Quantidade de Parcelas</span>
+                  <span className="text-xs text-muted-foreground">
+                    {form.payment_method === "boleto" && `Máx. ${maxInstallmentsBoleto}x (até a viagem)`}
+                    {form.payment_method === "cartao" && `Máx. ${maxInstallmentsCard}x (definido pelo admin)`}
+                    {(form.payment_method === "pix" || form.payment_method === "dinheiro") && "Até 24x"}
+                  </span>
+                </Label>
                 <Select value={form.installments} onValueChange={v => setForm({...form, installments: v})}>
                   <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {[...Array(12)].map((_, i) => (
-                      <SelectItem key={i+1} value={(i+1).toString()}>
-                        {i+1}x Parcela{i > 0 ? 's' : ''}{selectedTrip ? ` — ${fmt(totalPrice / (i+1))}` : ''}
+                    {Array.from({ length: maxInstallments }, (_, i) => i + 1).map(n => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}x{selectedTrip ? ` — ${fmt(totalPrice / n)}` : ''}{n > 1 ? ' parcelas' : ' parcela'}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Aviso de regra */}
+              {form.payment_method === "boleto" && selectedTrip && (
+                <div className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-400 p-2 rounded-lg">
+                  📅 Boleto: máximo de <strong>{maxInstallmentsBoleto} parcela{maxInstallmentsBoleto > 1 ? 's' : ''}</strong> até {new Date(selectedTrip.start_date).toLocaleDateString("pt-BR")}.
+                </div>
+              )}
+              {form.payment_method === "cartao" && cardFeePercent > 0 && (
+                <div className="text-xs bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 p-2 rounded-lg">
+                  💳 Taxa de maquininha de <strong>{cardFeePercent}%</strong> incluída no valor total.
+                </div>
+              )}
 
               {/* Resumo do valor */}
               {selectedTrip && (
@@ -248,6 +303,12 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                     <span className="text-muted-foreground">Preço por poltrona:</span>
                     <span className="font-bold">{fmt(selectedTrip.total_price)}</span>
                   </div>
+                  {cardFeePercent > 0 && (
+                    <div className="flex justify-between text-yellow-400/80">
+                      <span>+ Taxa cartão ({cardFeePercent}%):</span>
+                      <span className="font-bold">+{fmt(basePrice * cardFeePercent / 100)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Poltronas selecionadas:</span>
                     <span className="font-bold text-primary">{Math.max(selectedSeats.length, 0)}</span>
