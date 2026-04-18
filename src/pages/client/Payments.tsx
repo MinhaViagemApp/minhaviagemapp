@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -79,7 +79,7 @@ export default function ClientPayments() {
                 <TableCell>{(inst.trips as any)?.destination}</TableCell>
                 <TableCell>{inst.installment_number}ª</TableCell>
                 <TableCell>R$ {Number(inst.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
-                <TableCell>{new Date(inst.due_date).toLocaleDateString("pt-BR")}</TableCell>
+                <TableCell>{(() => { try { return new Date(inst.due_date).toLocaleDateString("pt-BR"); } catch { return "—"; } })()}</TableCell>
                 <TableCell>
                   <Badge variant={inst.status === "pago" ? "default" : "secondary"} className={inst.status === "pago" ? "bg-emerald-500/20 text-emerald-400 border-0" : ""}>
                     {inst.status}

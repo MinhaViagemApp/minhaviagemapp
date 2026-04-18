@@ -37,26 +37,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const ensureProfileAndRole = async (currentUser: User) => {
-    const fallbackRole = currentUser.user_metadata?.role === "admin" ? "admin" : "cliente";
+    try {
+      const fallbackRole = currentUser.user_metadata?.role === "admin" ? "admin" : "cliente";
 
-    await supabase.from("profiles").upsert({
-      id: currentUser.id,
-      email: currentUser.email ?? null,
-      name: currentUser.user_metadata?.name ?? null,
-    });
+      await supabase.from("profiles").upsert({
+        id: currentUser.id,
+        email: currentUser.email ?? null,
+        name: currentUser.user_metadata?.name ?? null,
+        phone: currentUser.user_metadata?.phone ?? null,
+      });
 
-    let role = await fetchUserRole(currentUser.id);
+      let role = await fetchUserRole(currentUser.id);
 
-    if (!role) {
-      const { error } = await supabase.from("user_roles").upsert(
-        { user_id: currentUser.id, role: fallbackRole },
-        { onConflict: "user_id,role" }
-      );
+      if (!role) {
+        const { error } = await supabase.from("user_roles").upsert(
+          { user_id: currentUser.id, role: fallbackRole },
+          { onConflict: "user_id,role" }
+        );
 
-      role = error ? null : fallbackRole;
+        role = error ? null : fallbackRole;
+      }
+
+      setUserRole(role);
+    } catch (error) {
+      console.error("Erro ao sincronizar perfil/role:", error);
+      // Mantém o usuário logado com papel padrão se falhar
+      setUserRole(currentUser.user_metadata?.role || "cliente");
     }
-
-    setUserRole(role);
   };
 
   useEffect(() => {

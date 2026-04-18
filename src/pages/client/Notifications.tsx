@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -52,7 +52,7 @@ export default function ClientNotifications() {
                 <p className="font-medium text-sm">{n.title}</p>
                 <p className="text-xs text-muted-foreground mt-1">{n.message}</p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {new Date(n.created_at).toLocaleDateString("pt-BR")}
+                  {(() => { try { return new Date(n.created_at).toLocaleDateString("pt-BR"); } catch { return "—"; } })()}
                 </p>
               </div>
               {!n.read && (

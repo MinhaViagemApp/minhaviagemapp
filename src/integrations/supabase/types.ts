@@ -79,6 +79,85 @@ export type Database = {
         }
         Relationships: []
       }
+      installments: {
+        Row: {
+          id: string
+          trip_id: string | null
+          user_id: string
+          installment_number: number
+          amount: number
+          status: string
+          payment_method: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          trip_id?: string | null
+          user_id: string
+          installment_number: number
+          amount: number
+          status?: string
+          payment_method?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          trip_id?: string | null
+          user_id?: string
+          installment_number?: number
+          amount?: number
+          status?: string
+          payment_method?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "installments_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      expenses: {
+        Row: {
+          id: string
+          description: string
+          amount: number
+          category: string
+          date: string
+          trip_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          description: string
+          amount: number
+          category: string
+          date: string
+          trip_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          description?: string
+          amount?: number
+          category?: string
+          date?: string
+          trip_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "expenses_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       payments: {
         Row: {
           amount_paid: number
@@ -120,6 +199,8 @@ export type Database = {
           id: string
           name: string | null
           phone: string | null
+          cpf: string | null
+          address: string | null
           pix_key: string | null
           updated_at: string
         }
@@ -131,9 +212,11 @@ export type Database = {
           business_phone?: string | null
           created_at?: string
           email?: string | null
-          id: string
+          id?: string
           name?: string | null
           phone?: string | null
+          cpf?: string | null
+          address?: string | null
           pix_key?: string | null
           updated_at?: string
         }
@@ -148,6 +231,8 @@ export type Database = {
           id?: string
           name?: string | null
           phone?: string | null
+          cpf?: string | null
+          address?: string | null
           pix_key?: string | null
           updated_at?: string
         }
@@ -176,6 +261,35 @@ export type Database = {
           title?: string
         }
         Relationships: []
+      }
+      promotion_images: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          promotion_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          promotion_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          promotion_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promotion_images_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       trip_images: {
         Row: {
@@ -216,7 +330,9 @@ export type Database = {
           start_date: string
           total_price: number
           updated_at: string
-          user_id: string
+          user_id: string | null
+          is_public: boolean | null
+          max_installments_card: number | null
         }
         Insert: {
           created_at?: string
@@ -227,7 +343,9 @@ export type Database = {
           start_date: string
           total_price?: number
           updated_at?: string
-          user_id: string
+          user_id?: string | null
+          is_public?: boolean | null
+          max_installments_card?: number | null
         }
         Update: {
           created_at?: string
@@ -238,7 +356,9 @@ export type Database = {
           start_date?: string
           total_price?: number
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
+          is_public?: boolean | null
+          max_installments_card?: number | null
         }
         Relationships: []
       }

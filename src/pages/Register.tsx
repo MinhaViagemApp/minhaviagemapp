@@ -13,6 +13,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState("cliente");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function Register() {
       email,
       password,
       options: {
-        data: { name, role },
+        data: { name, role, phone },
         emailRedirectTo: window.location.origin,
       },
     });
@@ -79,6 +80,17 @@ export default function Register() {
                 placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                required
+                className="bg-secondary/50"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">WhatsApp / Telefone</Label>
+              <Input
+                id="phone"
+                placeholder="(00) 00000-0000"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 required
                 className="bg-secondary/50"
               />
