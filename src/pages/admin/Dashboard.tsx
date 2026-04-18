@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Users, Plane, Activity, Armchair, MessageCircle, UserPlus } from "lucide-react";
+import { Users, Plane, Activity, Armchair, MessageCircle, UserPlus, UserCheck } from "lucide-react";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { BusAnimationWrapper } from "@/components/admin/BusAnimationWrapper";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,8 +19,8 @@ interface TripRow { id: string; destination: string; start_date: string; end_dat
 interface PaymentRow { id: string; amount_paid: number; paid_at: string; trip_id: string; destination?: string }
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ totalClients: 0, totalTrips: 0, totalRevenue: 0, activeTrips: 0, pendingQueries: 0 });
-  const [modal, setModal] = useState<"clients" | "trips" | "revenue" | "active" | "seating-select" | "seating-view" | "new-sale" | "queries" | null>(null);
+  const [stats, setStats] = useState({ totalClients: 0, activeClients: 0, totalTrips: 0, totalRevenue: 0, activeTrips: 0, pendingQueries: 0 });
+  const [modal, setModal] = useState<"clients" | "active-clients" | "trips" | "revenue" | "active" | "seating-select" | "seating-view" | "new-sale" | "queries" | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<TripRow | null>(null);
   const [seatData, setSeatData] = useState<any[]>([]);
   const [clients, setClients] = useState<ClientRow[]>([]);
@@ -42,10 +42,14 @@ export default function AdminDashboard() {
       supabase.from("payments").select("amount_paid"),
       supabase.from("trip_queries").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     ]);
+    // Calcula clientes ativos (que têm pelo menos um installment)
+    const { data: activeInstalls } = await supabase.from("installments").select("trip_id, trips(user_id)");
+    const activeUserIds = new Set((activeInstalls || []).map((i: any) => i.trips?.user_id).filter(Boolean));
     const totalRevenue = pRes.data?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0;
     const activeTrips = tRes.data?.filter(t => new Date(t.end_date) >= new Date()).length || 0;
     setStats({ 
-      totalClients: cRes.count || 0, 
+      totalClients: cRes.count || 0,
+      activeClients: activeUserIds.size,
       totalTrips: tRes.data?.length || 0, 
       totalRevenue, 
       activeTrips,
@@ -59,22 +63,26 @@ export default function AdminDashboard() {
 
   const openModal = async (type: typeof modal) => {
     setModal(type);
-    if (type === "clients") {
+    if (type === "clients" || type === "active-clients") {
       const { data: clientsData } = await supabase.from("profiles").select("id, name, email, phone, created_at").order("created_at", { ascending: false });
-      const { data: seatsData } = await supabase.from("trip_seats").select("user_id, trips(destination)").not("user_id", "is", null);
+      const { data: tripsData } = await supabase.from("trips").select("id, user_id, destination");
       
-      const clientTripsMap = new Map();
-      if (seatsData) {
-        seatsData.forEach(seat => {
-           if (seat.user_id && (seat.trips as any)?.destination) {
-             clientTripsMap.set(seat.user_id, (seat.trips as any).destination);
-           }
-        });
-      }
+      // Para clientes ativos: filtrar somente quem tem viagens
+      const usersWithTrips = new Set((tripsData || []).map(t => t.user_id));
+      const filtered = type === "active-clients" 
+        ? (clientsData || []).filter(c => usersWithTrips.has(c.id))
+        : (clientsData || []);
 
-      setClients((clientsData || []).map(c => ({
+      // Mapeia destinos por usuário
+      const userTripsMap = new Map<string, string[]>();
+      (tripsData || []).forEach(t => {
+        if (!userTripsMap.has(t.user_id)) userTripsMap.set(t.user_id, []);
+        userTripsMap.get(t.user_id)!.push(t.destination);
+      });
+
+      setClients(filtered.map(c => ({
         ...c,
-        viagem_nome: clientTripsMap.get(c.id) || "Sem reserva"
+        viagem_nome: userTripsMap.get(c.id)?.join(", ") || "Sem reserva"
       })));
     } else if (type === "trips" || type === "active") {
       const { data } = await supabase.from("trips").select("*").order("start_date", { ascending: false });
@@ -189,9 +197,12 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground">Visão geral da sua agência</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="cursor-pointer" onClick={() => openModal("clients")}>
           <StatCard title="Total de Clientes" value={stats.totalClients} icon={Users} />
+        </div>
+        <div className="cursor-pointer" onClick={() => openModal("active-clients")}>
+          <StatCard title="Clientes Ativos" value={stats.activeClients} icon={UserCheck} className="border-emerald-500/30 bg-emerald-500/5" />
         </div>
         <div className="cursor-pointer" onClick={() => openModal("queries")}>
           <StatCard title="Novas Consultas" value={stats.pendingQueries} icon={MessageCircle} className={stats.pendingQueries > 0 ? "border-orange-500/50 bg-orange-500/5" : ""} />
@@ -217,7 +228,7 @@ export default function AdminDashboard() {
       />
 
       {/* Clients Modal */}
-      <Dialog open={modal === "clients"} onOpenChange={() => setModal(null)}>
+      <Dialog open={modal === "clients" || modal === "active-clients"} onOpenChange={() => setModal(null)}>
         <DialogContent className="glass-strong max-w-4xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

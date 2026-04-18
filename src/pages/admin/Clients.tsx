@@ -6,10 +6,30 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, Trash2, MessageCircle, Check, Clock, UserPlus, Receipt } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Pencil, Trash2, MessageCircle, Check, Clock, UserPlus, ChevronDown, ChevronRight, Armchair, CreditCard, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { NewSaleModal } from "@/components/admin/NewSaleModal";
-import { ClientPaymentsModal } from "@/components/admin/ClientPaymentsModal";
+import { format, parseISO } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+interface Installment {
+  id: string;
+  installment_number: number;
+  amount: number;
+  status: string;
+  due_date: string;
+  trip_id: string;
+}
+
+interface TripInfo {
+  id: string;
+  destination: string;
+  start_date: string;
+  seat_number: string | null;
+  payment_method: string | null;
+  installments: Installment[];
+}
 
 interface Client {
   id: string;
@@ -19,7 +39,9 @@ interface Client {
   created_at: string;
   totalDue: number;
   totalPaid: number;
+  hasLatePayment: boolean;
   tripDestinations: string[];
+  trips: TripInfo[];
 }
 
 export default function AdminClients() {
@@ -30,50 +52,79 @@ export default function AdminClients() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [saleModalOpen, setSaleModalOpen] = useState(false);
-  const [paymentsModalOpen, setPaymentsModalOpen] = useState(false);
-  const [selectedClient, setSelectedClient] = useState<{ id: string; name: string } | null>(null);
-
-  const openPaymentsModal = (client: Client) => {
-    setSelectedClient({ id: client.id, name: client.name || "Cliente" });
-    setPaymentsModalOpen(true);
-  };
+  const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
+  const [updatingInstId, setUpdatingInstId] = useState<string | null>(null);
 
   const fetchClients = async () => {
-    const { data: profiles } = await supabase.from("profiles").select("id, name, email, phone, created_at").order("created_at", { ascending: false });
+    const { data: profiles } = await supabase
+      .from("profiles")
+      .select("id, name, email, phone, created_at")
+      .order("created_at", { ascending: false });
     if (!profiles) { setClients([]); return; }
 
-    // Fetch all trips and installments to calculate payment status
     const userIds = profiles.map(p => p.id);
-    const { data: trips } = await supabase.from("trips").select("id, user_id, destination").in("user_id", userIds);
-    const tripIds = trips?.map(t => t.id) || [];
 
-    let installments: any[] = [];
-    if (tripIds.length > 0) {
-      const { data } = await supabase.from("installments").select("trip_id, amount, status, due_date").in("trip_id", tripIds);
-      installments = data || [];
-    }
+    // Busca viagens com assentos e queries de pagamento
+    const { data: tripsData } = await supabase
+      .from("trips")
+      .select("id, user_id, destination, start_date")
+      .in("user_id", userIds);
 
-    const tripUserMap = new Map(trips?.map(t => [t.id, t.user_id]) || []);
+    const tripIds = tripsData?.map(t => t.id) || [];
+
+    const [{ data: installmentsData }, { data: seatsData }, { data: queriesData }] = await Promise.all([
+      supabase.from("installments")
+        .select("id, trip_id, amount, status, due_date, installment_number")
+        .in("trip_id", tripIds)
+        .order("installment_number", { ascending: true }),
+      supabase.from("trip_seats")
+        .select("trip_id, seat_number, user_id")
+        .in("trip_id", tripIds),
+      supabase.from("trip_queries")
+        .select("trip_id, payment_method, installments")
+        .in("trip_id", tripIds),
+    ]);
+
     const now = new Date();
 
-    const clientsWithPayments = profiles.map(p => {
-      const userInstallments = installments.filter(i => tripUserMap.get(i.trip_id) === p.id);
-      const totalDue = userInstallments.reduce((s, i) => s + Number(i.amount), 0);
-      const totalPaid = userInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
-      
-      const hasLatePayment = userInstallments.some(i => {
+    const clientsBuilt: Client[] = profiles.map(p => {
+      const userTrips = (tripsData || []).filter(t => t.user_id === p.id);
+      const userTripIds = userTrips.map(t => t.id);
+
+      const allInstallments = (installmentsData || []).filter(i => userTripIds.includes(i.trip_id));
+      const totalDue = allInstallments.reduce((s, i) => s + Number(i.amount), 0);
+      const totalPaid = allInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
+      const hasLatePayment = allInstallments.some(i => {
         if (i.status === "pago") return false;
-        const dueDate = new Date(i.due_date);
-        return dueDate < now && dueDate.toDateString() !== now.toDateString(); // Vencido
+        const d = new Date(i.due_date);
+        return d < now && d.toDateString() !== now.toDateString();
       });
 
-      const userTrips = trips?.filter(t => t.user_id === p.id).map(t => t.destination) || [];
-      const tripDestinations = Array.from(new Set(userTrips)); // unique
+      const trips: TripInfo[] = userTrips.map(t => {
+        const seat = (seatsData || []).find(s => s.trip_id === t.id && s.user_id === p.id);
+        const query = (queriesData || []).find(q => q.trip_id === t.id);
+        const insts = (installmentsData || []).filter(i => i.trip_id === t.id);
+        return {
+          id: t.id,
+          destination: t.destination,
+          start_date: t.start_date,
+          seat_number: seat?.seat_number || null,
+          payment_method: query?.payment_method || null,
+          installments: insts,
+        };
+      });
 
-      return { ...p, totalDue, totalPaid, hasLatePayment, tripDestinations } as any;
+      return {
+        ...p,
+        totalDue,
+        totalPaid,
+        hasLatePayment,
+        tripDestinations: userTrips.map(t => t.destination),
+        trips,
+      };
     });
 
-    setClients(clientsWithPayments);
+    setClients(clientsBuilt);
   };
 
   useEffect(() => { fetchClients(); }, []);
@@ -90,22 +141,19 @@ export default function AdminClients() {
     fetchClients();
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Tem certeza que deseja excluir o cliente "${name}"? Esta ação não pode ser desfeita.`)) return;
-
-    // Remove otimista: tira da lista ANTES de esperar o banco
+  const handleDelete = async (id: string, clientName: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o cliente "${clientName}"?`)) return;
     setClients(prev => prev.filter(c => c.id !== id));
-
-    // Apaga dados relacionados em cascata para evitar FK conflicts
-    await supabase.from("installments").delete().eq("user_id", id);
+    await supabase.from("installments").delete().in("trip_id", 
+      clients.find(c => c.id === id)?.trips.map(t => t.id) || []
+    );
     await supabase.from("trip_seats").delete().eq("user_id", id);
-
     const { error } = await supabase.from("profiles").delete().eq("id", id);
     if (error) {
       toast.error("Erro ao excluir: " + error.message);
-      fetchClients(); // Reverte a remoção otimista se falhar
+      fetchClients();
     } else {
-      toast.success(`Cliente "${name}" excluído com sucesso!`);
+      toast.success(`Cliente "${clientName}" excluído!`);
     }
   };
 
@@ -123,50 +171,60 @@ export default function AdminClients() {
     window.open(`https://wa.me/${num}`, "_blank");
   };
 
-  const isPaid = (client: Client) => client.totalDue > 0 && client.totalPaid >= client.totalDue;
+  const toggleExpand = (clientId: string) => {
+    setExpandedClientId(prev => prev === clientId ? null : clientId);
+  };
+
+  const updateInstallmentStatus = async (instId: string, newStatus: string) => {
+    setUpdatingInstId(instId);
+    const { error } = await supabase.from("installments").update({ status: newStatus }).eq("id", instId);
+    if (error) {
+      toast.error("Erro ao atualizar: " + error.message);
+    } else {
+      toast.success(newStatus === "pago" ? "✓ Parcela marcada como Paga!" : "Status atualizado.");
+      fetchClients();
+    }
+    setUpdatingInstId(null);
+  };
+
+  const getStatusBadge = (client: Client) => {
+    if (client.totalDue === 0) return <Badge className="bg-amber-500/20 text-amber-500 border-0">Pendente</Badge>;
+    if (client.totalPaid >= client.totalDue) return <Badge className="bg-emerald-500/20 text-emerald-400 border-0"><Check className="h-3 w-3 mr-1" />Pago</Badge>;
+    if (client.hasLatePayment) return <Badge className="bg-rose-500/20 text-rose-400 border-0"><AlertCircle className="h-3 w-3 mr-1" />Atrasado</Badge>;
+    return <Badge className="bg-sky-500/20 text-sky-400 border-0"><Clock className="h-3 w-3 mr-1" />Em Progresso</Badge>;
+  };
+
+  const getInstBadge = (inst: Installment) => {
+    const now = new Date();
+    if (inst.status === "pago") return <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px]">Pago</Badge>;
+    const d = new Date(inst.due_date);
+    if (d < now && d.toDateString() !== now.toDateString()) return <Badge className="bg-rose-500/20 text-rose-400 border-0 text-[10px]">Atrasado</Badge>;
+    return <Badge className="bg-sky-500/20 text-sky-400 border-0 text-[10px]">Em Progresso</Badge>;
+  };
+
+  const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Clientes</h1>
-          <p className="text-muted-foreground">Gerencie seus clientes</p>
+          <p className="text-muted-foreground">Gerencie seus clientes e parcelas</p>
         </div>
         <Button onClick={() => setSaleModalOpen(true)} className="gradient-accent text-white font-bold tracking-wide">
           <UserPlus className="mr-2 h-4 w-4" /> Adicionar Cliente
         </Button>
       </div>
 
-      <NewSaleModal 
-        open={saleModalOpen} 
-        onOpenChange={setSaleModalOpen} 
-        onSuccess={fetchClients} 
-      />
-
-      <ClientPaymentsModal
-        clientId={selectedClient?.id || null}
-        clientName={selectedClient?.name || ""}
-        isOpen={paymentsModalOpen}
-        onClose={() => setPaymentsModalOpen(false)}
-        onUpdate={fetchClients}
-      />
+      <NewSaleModal open={saleModalOpen} onOpenChange={setSaleModalOpen} onSuccess={fetchClients} />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="glass-strong">
           <DialogHeader><DialogTitle>Editar Cliente</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Nome</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-secondary/50" />
-            </div>
-            <div className="space-y-2">
-              <Label>Email</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} className="bg-secondary/50" />
-            </div>
-            <div className="space-y-2">
-              <Label>Telefone</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" className="bg-secondary/50" />
-            </div>
+            <div className="space-y-2"><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} className="bg-secondary/50" /></div>
+            <div className="space-y-2"><Label>Email</Label><Input value={email} onChange={(e) => setEmail(e.target.value)} className="bg-secondary/50" /></div>
+            <div className="space-y-2"><Label>Telefone</Label><Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(11) 99999-9999" className="bg-secondary/50" /></div>
             <Button onClick={handleSave} className="w-full gradient-accent">Salvar</Button>
           </div>
         </DialogContent>
@@ -176,6 +234,7 @@ export default function AdminClients() {
         <Table>
           <TableHeader>
             <TableRow className="border-border/50">
+              <TableHead className="w-6"></TableHead>
               <TableHead>Nome e Viagens</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Telefone</TableHead>
@@ -185,68 +244,160 @@ export default function AdminClients() {
           </TableHeader>
           <TableBody>
             {clients.map((client) => (
-              <TableRow key={client.id} className="border-border/50">
-                <TableCell className="cursor-pointer" onClick={() => openPaymentsModal(client)}>
-                  <div className="font-medium mb-1">{client.name || "—"}</div>
-                  <div className="flex flex-wrap gap-1">
-                    {client.tripDestinations?.map((dest, i) => (
-                      <Badge key={i} variant="outline" className="text-[10px] bg-secondary/50 border-white/10 uppercase tracking-tight">
-                        {dest}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell>{client.email}</TableCell>
-                <TableCell>
-                  {client.phone ? (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); openWhatsApp(client.phone!); }} 
-                      className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1"
-                    >
-                      <MessageCircle className="h-3 w-3" />
-                      {client.phone}
-                    </button>
-                  ) : "—"}
-                </TableCell>
-                <TableCell>
-                  {client.totalDue > 0 ? (
-                    isPaid(client) ? (
-                      <Badge className="bg-emerald-500/20 text-emerald-400 border-0">
-                        <Check className="h-3 w-3 mr-1" /> Pago
-                      </Badge>
-                    ) : (client as any).hasLatePayment ? (
-                      <Badge className="bg-rose-500/20 text-rose-400 border-0">
-                        <Clock className="h-3 w-3 mr-1" /> Atrasado
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-sky-500/20 text-sky-400 border-0">
-                        <Clock className="h-3 w-3 mr-1" /> Em Progresso
-                      </Badge>
-                    )
-                  ) : (
-                    <Badge className="bg-amber-500/20 text-amber-500 border-0">
-                      Pendente
-                    </Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-right space-x-1">
-                  {client.phone && (
-                    <Button variant="ghost" size="icon" onClick={() => openWhatsApp(client.phone!)} title="WhatsApp">
-                      <MessageCircle className="h-4 w-4 text-emerald-400" />
+              <>
+                <TableRow
+                  key={client.id}
+                  className={`border-border/50 cursor-pointer hover:bg-secondary/30 transition-colors ${expandedClientId === client.id ? "bg-secondary/20" : ""}`}
+                  onClick={() => toggleExpand(client.id)}
+                >
+                  <TableCell>
+                    {expandedClientId === client.id
+                      ? <ChevronDown className="h-4 w-4 text-primary" />
+                      : <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    }
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium mb-1">{client.name || "—"}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {client.tripDestinations.map((dest, i) => (
+                        <Badge key={i} variant="outline" className="text-[10px] bg-secondary/50 border-white/10 uppercase tracking-tight">
+                          {dest}
+                        </Badge>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>{client.email}</TableCell>
+                  <TableCell>
+                    {client.phone ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openWhatsApp(client.phone!); }}
+                        className="text-emerald-400 hover:text-emerald-300 hover:underline flex items-center gap-1"
+                      >
+                        <MessageCircle className="h-3 w-3" />
+                        {client.phone}
+                      </button>
+                    ) : "—"}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(client)}</TableCell>
+                  <TableCell className="text-right space-x-1" onClick={e => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" onClick={() => openEdit(client)}>
+                      <Pencil className="h-4 w-4 text-sky-400" />
                     </Button>
-                  )}
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(client)}>
-                    <Pencil className="h-4 w-4 text-sky-400" />
-                  </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id, client.name || 'Sem nome')}>
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </Button>
-                </TableCell>
-              </TableRow>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id, client.name || "Sem nome")}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+
+                {/* ACCORDION INLINE */}
+                {expandedClientId === client.id && (
+                  <TableRow key={`${client.id}-expanded`} className="bg-background/30">
+                    <TableCell colSpan={6} className="p-0">
+                      <div className="p-4 space-y-4 border-t border-white/5 animate-in slide-in-from-top-2 duration-200">
+                        {client.trips.length === 0 ? (
+                          <p className="text-center text-muted-foreground py-4 text-sm">Este cliente não possui viagens vinculadas.</p>
+                        ) : client.trips.map(trip => {
+                          const paidAmt = trip.installments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
+                          const totalAmt = trip.installments.reduce((s, i) => s + Number(i.amount), 0);
+                          const pct = totalAmt > 0 ? Math.round((paidAmt / totalAmt) * 100) : 0;
+
+                          return (
+                            <div key={trip.id} className="glass rounded-xl border border-white/10 overflow-hidden">
+                              {/* Cabeçalho da viagem */}
+                              <div className="p-4 border-b border-white/10 flex flex-wrap gap-4 items-center bg-black/20">
+                                <div className="flex-1">
+                                  <p className="font-bold text-emerald-400 text-base">{trip.destination}</p>
+                                  <p className="text-xs text-muted-foreground mt-0.5">
+                                    {trip.start_date ? format(parseISO(trip.start_date), "MMMM 'de' yyyy", { locale: ptBR }) : "—"}
+                                  </p>
+                                </div>
+                                <div className="flex gap-4 text-sm flex-wrap">
+                                  {trip.seat_number && (
+                                    <span className="flex items-center gap-1 bg-secondary/60 px-2 py-1 rounded-lg border border-white/10">
+                                      <Armchair className="h-3.5 w-3.5 text-primary" />
+                                      Poltrona <strong>{trip.seat_number}</strong>
+                                    </span>
+                                  )}
+                                  {trip.payment_method && (
+                                    <span className="flex items-center gap-1 bg-secondary/60 px-2 py-1 rounded-lg border border-white/10">
+                                      <CreditCard className="h-3.5 w-3.5 text-sky-400" />
+                                      <strong className="uppercase">{trip.payment_method}</strong>
+                                    </span>
+                                  )}
+                                  <span className="flex items-center gap-1 bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded-lg border border-emerald-500/30 text-xs font-bold">
+                                    {fmt(paidAmt)} / {fmt(totalAmt)} ({pct}%)
+                                  </span>
+                                </div>
+                                {/* Barra de progresso */}
+                                <div className="w-full">
+                                  <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Tabela de parcelas */}
+                              {trip.installments.length > 0 ? (
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="border-white/5 bg-black/10 hover:bg-black/10">
+                                      <TableHead className="text-xs py-2">Parcela</TableHead>
+                                      <TableHead className="text-xs py-2">Vencimento</TableHead>
+                                      <TableHead className="text-xs py-2">Valor</TableHead>
+                                      <TableHead className="text-xs py-2">Status</TableHead>
+                                      <TableHead className="text-xs py-2 text-right">Alterar</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {trip.installments.map(inst => (
+                                      <TableRow key={inst.id} className="border-white/5">
+                                        <TableCell className="font-bold text-sm">{inst.installment_number}ª</TableCell>
+                                        <TableCell className="text-xs">
+                                          <span className={new Date(inst.due_date) < new Date() && inst.status !== "pago" ? "text-rose-400 font-bold" : ""}>
+                                            {format(parseISO(inst.due_date), "dd/MM/yyyy")}
+                                          </span>
+                                        </TableCell>
+                                        <TableCell className="text-sm">{fmt(inst.amount)}</TableCell>
+                                        <TableCell>{getInstBadge(inst)}</TableCell>
+                                        <TableCell className="text-right">
+                                          <div className="w-[140px] ml-auto">
+                                            <Select
+                                              value={inst.status === "pago" ? "pago" : "pendente"}
+                                              onValueChange={(v) => updateInstallmentStatus(inst.id, v)}
+                                              disabled={updatingInstId === inst.id}
+                                            >
+                                              <SelectTrigger className="h-7 text-xs bg-black/30 border-white/10">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="pendente">Pendente / Em Prog.</SelectItem>
+                                                <SelectItem value="pago" className="text-emerald-400 font-bold">✓ Marcar Pago</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              ) : (
+                                <p className="text-center text-muted-foreground text-xs py-4">Nenhuma parcela registrada para esta viagem.</p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </>
             ))}
             {clients.length === 0 && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum cliente cadastrado</TableCell>
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Nenhum cliente cadastrado</TableCell>
               </TableRow>
             )}
           </TableBody>
