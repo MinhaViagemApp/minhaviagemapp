@@ -84,26 +84,22 @@ export const mcpService = {
   /**
    * Reserva uma poltrona se ela estiver livre ('free')
    */
-  async reserveSeat(seat_id: string, client_id: string, passenger_name: string): Promise<void> {
+  async reserveSeat(trip_id: string, seat_number: string, client_id: string | null, passenger_name: string): Promise<void> {
     const { data, error } = await (supabase as any)
-      .from('bus_seats')
-      .update({
-        status: 'ocupada',
-        client_id,
-        passenger_name,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', seat_id)
-      .in('status', ['livre', 'free'])
-      .select('id');
+      .rpc('reserve_bus_seat', {
+        _trip_id: trip_id,
+        _seat_number: Number(seat_number),
+        _client_id: client_id,
+        _passenger_name: passenger_name,
+      });
 
     if (error) {
       console.error("Erro ao reservar poltrona:", error.message);
       throw error;
     }
 
-    if (!data || data.length === 0) {
-      throw new Error('Esta poltrona já foi reservada por outra pessoa.');
+    if (!data) {
+      throw new Error('Esta poltrona já foi reservada nesta viagem.');
     }
   }
 };
