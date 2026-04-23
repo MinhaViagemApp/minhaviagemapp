@@ -241,13 +241,20 @@ export default function AdminDashboard() {
     }
   };
 
-  const openWhatsApp = (query: any) => {
+  const openWhatsApp = async (query: any) => {
     const phone = query.profiles?.phone?.replace(/\D/g, "");
     if (!phone) {
       toast.error("Cliente não cadastrou número de WhatsApp.");
       return;
     }
-    const message = `Olá ${query.profiles.name}! Recebemos seu interesse na viagem para *${query.trips.destination}*. Vamos confirmar sua reserva?`;
+    // Buscar o nome da empresa do admin logado
+    const { data: { user } } = await supabase.auth.getUser();
+    let companyName = "nossa agência";
+    if (user) {
+      const { data: profile } = await supabase.from("profiles").select("business_name").eq("id", user.id).maybeSingle();
+      if (profile?.business_name) companyName = profile.business_name;
+    }
+    const message = `Olá ${query.profiles?.name || ''}! Aqui é da ${companyName}, estou entrando em contato a respeito da sua reserva para ${query.trips?.destination}. Tudo bem com você?`;
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, "_blank");
   };
 
