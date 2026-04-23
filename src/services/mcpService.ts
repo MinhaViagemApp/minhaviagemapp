@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface Seat {
   id: string;
   seat_number: string;
-  status: 'free' | 'reserved' | 'occupied';
+  status: 'free' | 'reserved' | 'occupied' | 'pending';
   user_id: string | null;
   reserved_at: string | null;
   trip_id?: string | null;
