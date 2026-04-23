@@ -211,8 +211,33 @@ export default function ClientDashboard() {
 
   const handleBooking = async () => {
     if (!selectedPublicTrip || !user) return;
-    
-    // 1. Registrar a pré-reserva no banco de dados
+
+    if (!selectedSeat) {
+      toast.error("Selecione uma poltrona antes de confirmar a pré-reserva.");
+      return;
+    }
+
+    // 1. Reservar a poltrona (status fica como reservada até o admin confirmar)
+    try {
+      const passengerName = (user.user_metadata?.name as string) || user.email || "Cliente";
+      await mcpService.reserveSeat(selectedPublicTrip.id, selectedSeat, null, passengerName);
+    } catch (err: any) {
+      console.error("Erro ao reservar poltrona:", err);
+      toast.error(err?.message || "Esta poltrona já foi reservada. Escolha outra.");
+      // recarrega o mapa de poltronas
+      try {
+        const seats = await mcpService.getSeats(selectedPublicTrip.id);
+        setTripSeats(seats.map((s: any) => ({
+          number: s.seat_number,
+          status: s.status === "free" ? "available" : "occupied",
+          occupantName: s.occupant_name || undefined,
+          floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
+        })));
+      } catch {}
+      return;
+    }
+
+    // 2. Registrar a pré-reserva
     const { error: queryErr } = await supabase.from("trip_queries").insert({
       user_id: user.id,
       trip_id: selectedPublicTrip.id,
@@ -223,27 +248,25 @@ export default function ClientDashboard() {
 
     if (queryErr) {
       console.error("ERRO AO REGISTRAR PRÉ-RESERVA no banco:", queryErr);
-      if (queryErr?.message?.includes("relation \"public.trip_queries\" does not exist")) {
-        toast.error("O banco de dados não foi atualizado. Peça ao admin para rodar o script SQL de hoje.");
-      } else {
-        toast.error("Erro ao registrar interesse. Tente novamente.");
-      }
+      toast.error("Erro ao registrar interesse. Tente novamente.");
       return;
     }
 
-    // 2. Notificar o administrador
+    // 3. Notificar o administrador
     const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
     if (admins && admins.length > 0) {
+      const clientName = user.user_metadata?.name || user.email;
       const notifications = admins.map(admin => ({
         user_id: admin.user_id,
-        title: "Nova consulta de viagem",
-        message: `O cliente ${user.user_metadata?.name || user.email} tem interesse na viagem para ${selectedPublicTrip.destination}. Confira no painel!`
+        title: "Nova pré-reserva",
+        message: `${clientName} pré-reservou a poltrona ${selectedSeat} para ${selectedPublicTrip.destination}. Confira no painel!`
       }));
       await supabase.from("notifications").insert(notifications);
     }
 
-    toast.success("Pré-reserva confirmada! O administrador entrará em contato em breve.");
+    toast.success(`Pré-reserva confirmada! Poltrona ${selectedSeat} aguardando aprovação do administrador.`);
     setSelectedPublicTrip(null);
+    setSelectedSeat(null);
   };
 
   const paidPercent = trip && trip.total_price > 0 ? Math.min(100, Math.round((paidAmount / trip.total_price) * 100)) : 0;
