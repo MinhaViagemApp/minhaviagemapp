@@ -185,8 +185,10 @@ export type Database = {
           due_date: string
           id: string
           installment_number: number
+          payment_method: string
           status: string
           trip_id: string
+          user_id: string | null
         }
         Insert: {
           amount: number
@@ -194,8 +196,10 @@ export type Database = {
           due_date: string
           id?: string
           installment_number: number
+          payment_method?: string
           status?: string
           trip_id: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
@@ -203,8 +207,10 @@ export type Database = {
           due_date?: string
           id?: string
           installment_number?: number
+          payment_method?: string
           status?: string
           trip_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -274,11 +280,13 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address: string | null
           business_address: string | null
           business_cnpj: string | null
           business_logo_url: string | null
           business_name: string | null
           business_phone: string | null
+          cpf: string | null
           created_at: string
           email: string | null
           id: string
@@ -288,11 +296,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          address?: string | null
           business_address?: string | null
           business_cnpj?: string | null
           business_logo_url?: string | null
           business_name?: string | null
           business_phone?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
           id: string
@@ -302,11 +312,13 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          address?: string | null
           business_address?: string | null
           business_cnpj?: string | null
           business_logo_url?: string | null
           business_name?: string | null
           business_phone?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -317,11 +329,33 @@ export type Database = {
         }
         Relationships: []
       }
+      promotion_images: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          promotion_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          promotion_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          promotion_id?: string
+        }
+        Relationships: []
+      }
       promotions: {
         Row: {
           company_id: string | null
           created_at: string
           description: string | null
+          draft_status: string
           expires_at: string | null
           id: string
           image: string | null
@@ -331,6 +365,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           description?: string | null
+          draft_status?: string
           expires_at?: string | null
           id?: string
           image?: string | null
@@ -340,6 +375,7 @@ export type Database = {
           company_id?: string | null
           created_at?: string
           description?: string | null
+          draft_status?: string
           expires_at?: string | null
           id?: string
           image?: string | null
@@ -384,15 +420,79 @@ export type Database = {
           },
         ]
       }
+      trip_queries: {
+        Row: {
+          created_at: string
+          id: string
+          installments: number
+          payment_method: string
+          status: string
+          trip_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          installments?: number
+          payment_method?: string
+          status?: string
+          trip_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          installments?: number
+          payment_method?: string
+          status?: string
+          trip_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      trip_seats: {
+        Row: {
+          created_at: string
+          id: string
+          seat_number: string
+          status: string
+          trip_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          seat_number: string
+          status?: string
+          trip_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          seat_number?: string
+          status?: string
+          trip_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       trips: {
         Row: {
           company_id: string | null
           created_at: string
+          credit_card_fee_percent: number
           description: string | null
           destination: string
+          draft_status: string
           end_date: string
           id: string
           images: string[]
+          is_public: boolean
+          max_installments_card: number
           start_date: string
           total_price: number
           total_seats: number
@@ -402,11 +502,15 @@ export type Database = {
         Insert: {
           company_id?: string | null
           created_at?: string
+          credit_card_fee_percent?: number
           description?: string | null
           destination: string
+          draft_status?: string
           end_date: string
           id?: string
           images?: string[]
+          is_public?: boolean
+          max_installments_card?: number
           start_date: string
           total_price?: number
           total_seats?: number
@@ -416,11 +520,15 @@ export type Database = {
         Update: {
           company_id?: string | null
           created_at?: string
+          credit_card_fee_percent?: number
           description?: string | null
           destination?: string
+          draft_status?: string
           end_date?: string
           id?: string
           images?: string[]
+          is_public?: boolean
+          max_installments_card?: number
           start_date?: string
           total_price?: number
           total_seats?: number
