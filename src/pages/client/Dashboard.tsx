@@ -301,7 +301,7 @@ export default function ClientDashboard() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Plane className="h-5 w-5 text-primary" />
-              Minha Viagem Reservada
+              Minha Viagem Ativa
             </h2>
             <Badge variant="outline" className="border-emerald-500 text-emerald-500 bg-emerald-500/5 animate-pulse">
               RESERVA CONFIRMADA
