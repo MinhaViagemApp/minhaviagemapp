@@ -99,13 +99,52 @@ export default function AdminDashboard() {
       const { data } = await supabase.from("trips").select("*").order("start_date", { ascending: false });
       setTrips(data || []);
     } else if (type === "queries") {
-      const { data } = await supabase
+      const { data: qData } = await supabase
         .from("trip_queries")
-        .select("*, profiles(name, phone, email), trips(destination, start_date)")
+        .select("*")
         .order("created_at", { ascending: false });
-      setQueries(data || []);
+      const list = qData || [];
+      const userIds = [...new Set(list.map((q: any) => q.user_id))];
+      const tripIds = [...new Set(list.map((q: any) => q.trip_id))];
+      const [{ data: profs }, { data: tripsData }] = await Promise.all([
+        userIds.length ? supabase.from("profiles").select("id, name, email, phone").in("id", userIds) : Promise.resolve({ data: [] as any[] }),
+        tripIds.length ? supabase.from("trips").select("id, destination, start_date, total_price, total_seats").in("id", tripIds) : Promise.resolve({ data: [] as any[] }),
+      ]);
+      const pMap = new Map((profs || []).map((p: any) => [p.id, p]));
+      const tMap = new Map((tripsData || []).map((t: any) => [t.id, t]));
+      // Buscar poltronas ocupadas por viagem
+      const seatsByTrip: Record<string, { occupied: number; total: number }> = {};
+      for (const t of (tripsData || [])) {
+        const { data: seats } = await supabase.from("bus_seats").select("status").eq("trip_id", t.id);
+        const occupied = (seats || []).filter((s: any) => s.status !== 'livre' && s.status !== 'free').length;
+        seatsByTrip[t.id] = { occupied, total: t.total_seats || 44 };
+      }
+      setQueries(list.map((q: any) => ({
+        ...q,
+        profiles: pMap.get(q.user_id) || null,
+        trips: tMap.get(q.trip_id) || null,
+        seats_info: seatsByTrip[q.trip_id] || { occupied: 0, total: 44 },
+      })));
     }
   };
+
+  // Realtime: detectar nova consulta e disparar popup
+  useEffect(() => {
+    const channel = supabase
+      .channel('trip_queries_realtime')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'trip_queries' }, async (payload) => {
+        const q: any = payload.new;
+        const { data: prof } = await supabase.from("profiles").select("name").eq("id", q.user_id).maybeSingle();
+        const { data: t } = await supabase.from("trips").select("destination").eq("id", q.trip_id).maybeSingle();
+        toast.success(`🔔 Nova pré-reserva de ${prof?.name || 'cliente'} para ${t?.destination || 'viagem'}!`, {
+          duration: 8000,
+          action: { label: "Conferir agora", onClick: () => openModal("queries") },
+        });
+        fetchStats();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   const handleTripSelect = async (trip: TripRow) => {
     setSelectedTrip(trip);
