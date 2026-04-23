@@ -357,23 +357,23 @@ export default function ClientDashboard() {
                     </div>
                   </div>
 
-                  {/* A Jornada do Ônibus (Progress Bar Animada) */}
+                  {/* A Jornada do Ônibus — agora baseada em datas (criação → embarque) */}
                   <div className="pt-2">
                     <div className="flex justify-between items-end text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
-                      <span>Preparação da Viagem</span>
+                      <span>Contagem para o Embarque</span>
                       <span className="text-orange-500 text-xs text-right leading-none">
-                         {paidPercent >= 100 ? "TUDO PRONTO!" : `Faltam ${100 - paidPercent}%`}
+                         {timePercent >= 100 ? "EMBARCANDO!" : `${daysLeft} dias`}
                       </span>
                     </div>
                     <div className="relative h-8 w-full bg-secondary/80 rounded-full overflow-hidden shadow-inner border border-border/50">
                       <div 
                         className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 via-primary to-emerald-500 transition-all duration-1000 ease-out"
-                        style={{ width: `${Math.max(10, paidPercent)}%` }}
+                        style={{ width: `${Math.max(5, timePercent)}%` }}
                       />
-                      {/* Animated Bus Icon tracking the progress end */}
+                      {/* Animated Bus Icon tracking time progress */}
                       <div 
                         className="absolute top-1/2 -translate-y-1/2 drop-shadow-md text-white transition-all duration-1000 ease-out z-10"
-                        style={{ left: `calc(${Math.max(10, paidPercent)}% - 16px)` }}
+                        style={{ left: `calc(${Math.max(5, timePercent)}% - 16px)` }}
                       >
                         <div className="bg-background p-1.5 rounded-full border border-primary/20 shadow-lg">
                            <Bus className="h-5 w-5 text-primary" />
@@ -381,7 +381,7 @@ export default function ClientDashboard() {
                       </div>
                     </div>
                     <p className="text-[9px] text-center italic text-muted-foreground mt-2">
-                      Progresso baseado na sua confirmação, data e parcelas pagas.
+                      O ônibus avança conforme se aproxima a data da viagem.
                     </p>
                   </div>
                 </div>
