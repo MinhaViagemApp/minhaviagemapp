@@ -12,9 +12,10 @@ interface BusSeatPickerProps {
   seats: Seat[];
   onSeatClick?: (seatNumber: string) => void;
   compact?: boolean; // para uso no modal de Nova Venda (menor)
+  hideOccupantName?: boolean; // ocultar nome do passageiro (visão do cliente)
 }
 
-export const BusSeatPicker: React.FC<BusSeatPickerProps> = ({ seats, onSeatClick, compact = false }) => {
+export const BusSeatPicker: React.FC<BusSeatPickerProps> = ({ seats, onSeatClick, compact = false, hideOccupantName = false }) => {
   const getSeat = (num: string) => {
     const found = seats.find((s) => s.number === num);
     return found || { number: num, status: "available" as const, occupantName: undefined, floor: "superior" as const };
@@ -51,7 +52,9 @@ export const BusSeatPicker: React.FC<BusSeatPickerProps> = ({ seats, onSeatClick
             </button>
           </TooltipTrigger>
           <TooltipContent side="top" className="bg-slate-900 border-slate-700 text-white text-xs font-medium z-50">
-            {isReserved ? (seat.occupantName ? `👤 ${seat.occupantName}` : "Ocupada/Reservada") : isSelected ? `✓ Poltrona ${num} — Selecionada` : `Poltrona ${num} — Livre`}
+            {isReserved
+              ? (!hideOccupantName && seat.occupantName ? `👤 ${seat.occupantName}` : `Poltrona ${num} — Ocupada`)
+              : isSelected ? `✓ Poltrona ${num} — Selecionada` : `Poltrona ${num} — Livre`}
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
