@@ -12,6 +12,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -25,6 +26,28 @@ export default function Login() {
     } else {
       navigate("/");
     }
+  };
+
+  const handleForgotPassword = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail) {
+      toast.error("Informe seu e-mail para receber o link de redefinição.");
+      return;
+    }
+
+    setResetLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setResetLoading(false);
+
+    if (error) {
+      toast.error("Não foi possível enviar o e-mail de redefinição. Tente novamente.");
+      return;
+    }
+
+    toast.success("Enviamos um link de redefinição para o e-mail informado.");
   };
 
   return (
@@ -67,6 +90,15 @@ export default function Login() {
               {loading ? "Entrando..." : "Entrar"}
             </Button>
           </form>
+          <Button
+            type="button"
+            variant="link"
+            className="mt-3 w-full text-accent"
+            onClick={handleForgotPassword}
+            disabled={resetLoading}
+          >
+            {resetLoading ? "Enviando link..." : "Esqueci minha senha"}
+          </Button>
           <p className="text-center text-sm text-muted-foreground mt-4">
             Não tem conta?{" "}
             <Link to="/register" className="text-accent hover:underline">
