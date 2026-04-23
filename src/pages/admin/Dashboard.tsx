@@ -214,26 +214,72 @@ export default function AdminDashboard() {
     setClientInstallments(data || []);
   };
 
-  const toggleInstallmentStatus = async (installmentId: string, currentStatus: string) => {
-    const nextStatus = currentStatus === "pago" ? "pendente" : "pago";
-    const { error } = await supabase.from("installments").update({ status: nextStatus }).eq("id", installmentId);
+  const setInstallmentStatus = async (installmentId: string, newStatus: "pago" | "pendente" | "atrasado" | "cancelado") => {
+    const { error } = await supabase.from("installments").update({ status: newStatus }).eq("id", installmentId);
     if (error) {
       toast.error("Erro ao atualizar parcela: " + error.message);
       return;
     }
-    toast.success(nextStatus === "pago" ? "Parcela marcada como paga!" : "Parcela voltou para pendente.");
+    toast.success(`Parcela marcada como ${newStatus}!`);
     if (expandedClient) await toggleClientAccordion(expandedClient);
     fetchStats();
   };
 
-  const handleQueryStatus = async (queryId: string, newStatus: string) => {
-    const { error } = await supabase.from("trip_queries").update({ status: newStatus }).eq("id", queryId);
-    if (error) {
-      toast.error("Erro ao atualizar status: " + error.message);
-    } else {
-      toast.success(`Consulta marcada como ${newStatus}!`);
+  const handleConfirmQuery = async (query: any) => {
+    try {
+      const email = (query.profiles?.email || "").trim().toLowerCase();
+      const name = query.profiles?.name || query.passenger_name || email;
+      const phone = query.profiles?.phone || query.phone || null;
+
+      // Pega company_id do admin logado
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Não autenticado.");
+      const { data: companyRow } = await supabase.from("user_companies").select("company_id").eq("user_id", user.id).maybeSingle();
+      const companyId = companyRow?.company_id;
+      if (!companyId) throw new Error("Sua conta não tem empresa vinculada.");
+
+      // Busca ou cria cliente na tabela clients
+      let { data: existing } = await supabase.from("clients").select("id").eq("email", email).eq("company_id", companyId).maybeSingle();
+      let clientId = existing?.id;
+      if (!clientId) {
+        const { data: created, error: cErr } = await supabase.from("clients").insert({ name, email, phone, company_id: companyId }).select("id").single();
+        if (cErr) throw cErr;
+        clientId = created!.id;
+      }
+
+      const { error } = await (supabase as any).rpc("confirm_trip_query", { _query_id: query.id, _client_id: clientId });
+      if (error) throw error;
+
+      // Notifica o cliente
+      await supabase.from("notifications").insert({
+        user_id: query.user_id,
+        title: "Pré-reserva confirmada!",
+        message: `Sua reserva para ${query.trips?.destination} foi confirmada. Veja em "Minha Viagem Ativa".`,
+      });
+
+      toast.success("Pré-reserva confirmada!");
       openModal("queries");
       fetchStats();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Erro ao confirmar: " + (e.message || ""));
+    }
+  };
+
+  const handleRejectQuery = async (query: any) => {
+    try {
+      const { error } = await (supabase as any).rpc("reject_trip_query", { _query_id: query.id });
+      if (error) throw error;
+      await supabase.from("notifications").insert({
+        user_id: query.user_id,
+        title: "Pré-reserva recusada",
+        message: `Sua pré-reserva para ${query.trips?.destination} foi recusada. Entre em contato para mais detalhes.`,
+      });
+      toast.success("Pré-reserva recusada e poltrona liberada.");
+      openModal("queries");
+      fetchStats();
+    } catch (e: any) {
+      toast.error("Erro: " + (e.message || ""));
     }
   };
 
