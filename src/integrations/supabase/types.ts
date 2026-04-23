@@ -378,7 +378,15 @@ export type Database = {
           image_url?: string
           promotion_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "promotion_images_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       promotions: {
         Row: {
