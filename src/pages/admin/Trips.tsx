@@ -231,6 +231,11 @@ export default function AdminTrips() {
         <DialogContent className="glass-strong max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editTrip ? "Editar Viagem" : "Nova Viagem"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {!editTrip && draftSaved && (
+              <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                Rascunho salvo automaticamente neste dispositivo.
+              </div>
+            )}
             <div className="flex items-center space-x-2 bg-secondary/30 p-3 rounded-lg border border-border/50">
               <input 
                 type="checkbox" 
@@ -325,10 +330,17 @@ export default function AdminTrips() {
               </div>
             )}
 
-            <Button onClick={handleSave} disabled={isCreating} className="w-full gradient-accent">
-              {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {editTrip ? "Salvar Alterações" : "Criar Viagem"}
-            </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!editTrip && (
+                <Button variant="outline" onClick={saveDraftAndClose} disabled={isCreating}>
+                  Salvar rascunho
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={isCreating} className="w-full gradient-accent">
+                {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {editTrip ? "Salvar Alterações" : "Finalizar Cadastro"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
