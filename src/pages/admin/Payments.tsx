@@ -64,7 +64,7 @@ export default function AdminPayments() {
     const { data: tripData } = await supabase
       .from("trips")
       .select("id, destination")
-      .order("departure_date", { ascending: false });
+      .order("start_date", { ascending: false });
 
     if (tripData) setTrips(tripData);
     
