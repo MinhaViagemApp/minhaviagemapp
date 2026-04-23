@@ -56,6 +56,36 @@ export default function ClientDashboard() {
     paymentMethod: "pix",
     installments: "1"
   });
+  const [tripSeats, setTripSeats] = useState<any[]>([]);
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [loadingSeats, setLoadingSeats] = useState(false);
+
+  // Quando abrir o modal de pré-reserva, carregar poltronas da viagem
+  useEffect(() => {
+    const loadSeats = async () => {
+      if (!selectedPublicTrip) {
+        setTripSeats([]);
+        setSelectedSeat(null);
+        return;
+      }
+      setLoadingSeats(true);
+      try {
+        const seats = await mcpService.getSeats(selectedPublicTrip.id);
+        const mapped = seats.map((s: any) => ({
+          number: s.seat_number,
+          status: s.status === "free" ? "available" : "occupied",
+          occupantName: s.occupant_name || undefined,
+          floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
+        }));
+        setTripSeats(mapped);
+      } catch (e) {
+        console.error("Erro ao carregar poltronas:", e);
+      } finally {
+        setLoadingSeats(false);
+      }
+    };
+    loadSeats();
+  }, [selectedPublicTrip]);
 
   useEffect(() => {
     if (!user) return;
