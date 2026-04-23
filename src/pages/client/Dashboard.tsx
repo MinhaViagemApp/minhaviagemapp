@@ -501,7 +501,7 @@ export default function ClientDashboard() {
       </div>
 
       <Dialog open={!!selectedPublicTrip} onOpenChange={() => setSelectedPublicTrip(null)}>
-        <DialogContent className="glass-strong max-w-md w-[95vw] border-primary/20 shadow-2xl">
+        <DialogContent className="glass-strong max-w-3xl w-[95vw] max-h-[92vh] overflow-y-auto border-primary/20 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-2xl font-black">
               <div className="bg-primary/20 p-2 rounded-lg"><Plane className="h-6 w-6 text-primary" /></div>
@@ -515,6 +515,49 @@ export default function ClientDashboard() {
                 {selectedPublicTrip ? `${(() => { try { return new Date(selectedPublicTrip.start_date).toLocaleDateString("pt-BR"); } catch { return "-"; } })()} — ${(() => { try { return new Date(selectedPublicTrip.end_date).toLocaleDateString("pt-BR"); } catch { return "-"; } })()}` : ""}
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{selectedPublicTrip?.description}</p>
+            </div>
+
+            {/* Seleção de poltrona */}
+            <div className="p-4 sm:p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em] flex items-center gap-2">
+                  <Armchair className="h-4 w-4 text-primary" />
+                  Escolha sua poltrona
+                </h4>
+                {selectedSeat && (
+                  <Badge className="bg-orange-500 text-white border-orange-700 font-black">
+                    Poltrona {selectedSeat} selecionada
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px] font-black uppercase text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Livre</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500 inline-block" /> Selecionada</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block" /> Reservada</span>
+              </div>
+
+              {loadingSeats ? (
+                <div className="text-center py-6 text-sm text-muted-foreground italic">Carregando poltronas...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <BusSeatPicker
+                    compact
+                    seats={tripSeats.map(s => ({
+                      ...s,
+                      status: s.number === selectedSeat ? "selected" : s.status,
+                    }))}
+                    onSeatClick={(num) => {
+                      const seat = tripSeats.find(s => s.number === num);
+                      if (seat && seat.status === "occupied") {
+                        toast.error("Esta poltrona já está reservada.");
+                        return;
+                      }
+                      setSelectedSeat(prev => (prev === num ? null : num));
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-5">
