@@ -595,6 +595,7 @@ export default function ClientDashboard() {
                 <div className="overflow-x-auto -mx-2 px-2">
                   <BusSeatPicker
                     compact
+                    hideOccupantName
                     seats={tripSeats.map(s => ({
                       ...s,
                       status: s.number === selectedSeat ? "selected" : s.status,
