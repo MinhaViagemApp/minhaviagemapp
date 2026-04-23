@@ -111,6 +111,7 @@ export default function ClientDashboard() {
         .from("trips")
         .select("*, trip_images(image_url)")
         .eq("is_public", true)
+        .eq("draft_status", "published")
         .gte("end_date", new Date().toISOString().split("T")[0])
         .order("start_date", { ascending: true });
       
@@ -123,6 +124,7 @@ export default function ClientDashboard() {
       const { data: promos } = await supabase
         .from("promotions")
         .select("*, promotion_images(image_url)")
+        .eq("draft_status", "published")
         .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
       
@@ -146,6 +148,14 @@ export default function ClientDashboard() {
     };
     fetchData();
   }, [user]);
+
+  useEffect(() => {
+    if (photos.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setPhotoIdx((current) => (current + 1) % photos.length);
+    }, 3500);
+    return () => window.clearInterval(timer);
+  }, [photos.length]);
 
   const copyPix = () => {
     if (!pixKey) return;
