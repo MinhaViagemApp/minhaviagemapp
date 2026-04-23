@@ -17,10 +17,11 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const normalizedEmail = email.trim().toLowerCase();
+    const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      toast.error("Email ou senha inválidos. Verifique os dados e tente novamente.");
     } else {
       navigate("/");
     }
