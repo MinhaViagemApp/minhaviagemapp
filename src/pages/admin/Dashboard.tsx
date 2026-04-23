@@ -120,7 +120,7 @@ export default function AdminDashboard() {
       id: s.id,
       number: s.seat_number.padStart(2, '0'),
       status: s.status === 'free' ? 'available' : 'occupied',
-      occupantName: s.user_id ? (allProfiles?.find(c => c.id === s.user_id)?.name || "Reservado") : undefined,
+      occupantName: s.occupant_name || (s.user_id ? (allProfiles?.find(c => c.id === s.user_id)?.name || "Reservado") : undefined),
       floor: parseInt(s.seat_number) <= 44 ? "superior" : "inferior"
     })));
   };
@@ -151,6 +151,14 @@ export default function AdminDashboard() {
       const selectedClient = clients.find(client => client.id === selectedClientForSeat);
       const passengerName = selectedClient?.name || manualNameForSeat || "Passageiro";
       await mcpService.reserveSeat(targetSeat.id, selectedClientForSeat || "manual-entry", passengerName);
+      if (selectedClientForSeat) {
+        await supabase.from("trip_seats").insert({
+          trip_id: selectedTrip.id,
+          user_id: selectedClientForSeat,
+          seat_number: assignSeat,
+          status: "reserved"
+        });
+      }
       toast.success(`✅ Poltrona ${assignSeat} reservada com sucesso!`);
       setAssignSeat(null);
       setSelectedClientForSeat("");
