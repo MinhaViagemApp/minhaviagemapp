@@ -380,18 +380,25 @@ export default function AdminDashboard() {
                     <div className="flex flex-col">
                       <span className="font-bold">{q.profiles?.name || "—"}</span>
                       <span className="text-[10px] text-muted-foreground">{q.profiles?.email}</span>
+                      {q.profiles?.phone && (
+                        <span className="text-[10px] text-emerald-500 font-semibold">📱 {q.profiles.phone}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="text-sm font-medium">{q.trips?.destination}</span>
-                      <span className="text-[10px] text-muted-foreground">{new Date(q.trips?.start_date).toLocaleDateString()}</span>
+                      <span className="text-[10px] text-muted-foreground">{q.trips?.start_date ? new Date(q.trips.start_date).toLocaleDateString("pt-BR") : "—"}</span>
+                      <span className="text-[10px] text-orange-400 font-semibold">🪑 {q.seats_info?.occupied || 0}/{q.seats_info?.total || 44} ocupadas</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="text-xs font-bold uppercase">{q.payment_method}</span>
-                      <span className="text-[10px] text-muted-foreground">{q.installments} parcelas</span>
+                      <span className="text-[10px] text-muted-foreground">{q.installments}x</span>
+                      {q.trips?.total_price && (
+                        <span className="text-[10px] text-emerald-500 font-semibold">R$ {Number(q.trips.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
