@@ -463,7 +463,10 @@ export type Database = {
           created_at: string
           id: string
           installments: number
+          passenger_name: string | null
           payment_method: string
+          phone: string | null
+          seat_number: number | null
           status: string
           trip_id: string
           updated_at: string
@@ -473,7 +476,10 @@ export type Database = {
           created_at?: string
           id?: string
           installments?: number
+          passenger_name?: string | null
           payment_method?: string
+          phone?: string | null
+          seat_number?: number | null
           status?: string
           trip_id: string
           updated_at?: string
@@ -483,7 +489,10 @@ export type Database = {
           created_at?: string
           id?: string
           installments?: number
+          passenger_name?: string | null
           payment_method?: string
+          phone?: string | null
+          seat_number?: number | null
           status?: string
           trip_id?: string
           updated_at?: string
@@ -641,6 +650,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      confirm_trip_query: {
+        Args: { _client_id: string; _query_id: string }
+        Returns: undefined
+      }
       get_auth_email: { Args: never; Returns: string }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
@@ -650,7 +663,32 @@ export type Database = {
         }
         Returns: boolean
       }
+      prereserve_bus_seat: {
+        Args: {
+          _passenger_name: string
+          _phone?: string
+          _seat_number: number
+          _trip_id: string
+        }
+        Returns: {
+          client_id: string | null
+          created_at: string
+          id: string
+          passenger_name: string | null
+          seat_number: number
+          status: string
+          trip_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bus_seats"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       refresh_trip_statuses: { Args: never; Returns: undefined }
+      reject_trip_query: { Args: { _query_id: string }; Returns: undefined }
       reserve_bus_seat: {
         Args: {
           _client_id: string

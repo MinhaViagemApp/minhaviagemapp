@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface Seat {
   id: string;
   seat_number: string;
-  status: 'free' | 'reserved' | 'occupied';
+  status: 'free' | 'reserved' | 'occupied' | 'pending';
   user_id: string | null;
   reserved_at: string | null;
   trip_id?: string | null;
@@ -40,13 +40,31 @@ export const mcpService = {
     return data.map((seat: any) => ({
       id: seat.id,
       seat_number: String(seat.seat_number).padStart(2, '0'),
-      status: seat.status === 'livre' || seat.status === 'free' ? 'free' : 'reserved',
+      status: (seat.status === 'livre' || seat.status === 'free')
+        ? 'free'
+        : (seat.status === 'pendente' ? 'pending' : 'reserved'),
       user_id: seat.client_id,
       client_id: seat.client_id,
       occupant_name: seat.passenger_name,
       reserved_at: seat.updated_at,
       trip_id: seat.trip_id,
     })) as Seat[];
+  },
+
+  /**
+   * Cliente faz pré-reserva (status = 'pendente'); aguarda confirmação do admin
+   */
+  async prereserveSeat(trip_id: string, seat_number: string, passenger_name: string, phone?: string): Promise<void> {
+    const { error } = await (supabase as any).rpc('prereserve_bus_seat', {
+      _trip_id: trip_id,
+      _seat_number: Number(seat_number),
+      _passenger_name: passenger_name,
+      _phone: phone || null,
+    });
+    if (error) {
+      console.error('Erro ao pré-reservar poltrona:', error.message);
+      throw error;
+    }
   },
 
   /**

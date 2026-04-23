@@ -74,7 +74,7 @@ export default function ClientDashboard() {
         const mapped = seats.map((s: any) => ({
           number: s.seat_number,
           status: s.status === "free" ? "available" : "occupied",
-          occupantName: s.occupant_name || undefined,
+          occupantName: s.occupant_name || (s.status === "pending" ? "Pré-reservada" : undefined),
           floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
         }));
         setTripSeats(mapped);
@@ -217,12 +217,13 @@ export default function ClientDashboard() {
       return;
     }
 
-    // 1. Reservar a poltrona (status fica como reservada até o admin confirmar)
+    // 1. Pré-reservar a poltrona (status fica como 'pendente' até o admin confirmar)
     try {
       const passengerName = (user.user_metadata?.name as string) || user.email || "Cliente";
-      await mcpService.reserveSeat(selectedPublicTrip.id, selectedSeat, null, passengerName);
+      const phone = (user.user_metadata?.phone as string) || "";
+      await mcpService.prereserveSeat(selectedPublicTrip.id, selectedSeat, passengerName, phone);
     } catch (err: any) {
-      console.error("Erro ao reservar poltrona:", err);
+      console.error("Erro ao pré-reservar poltrona:", err);
       toast.error(err?.message || "Esta poltrona já foi reservada. Escolha outra.");
       // recarrega o mapa de poltronas
       try {
@@ -230,7 +231,7 @@ export default function ClientDashboard() {
         setTripSeats(seats.map((s: any) => ({
           number: s.seat_number,
           status: s.status === "free" ? "available" : "occupied",
-          occupantName: s.occupant_name || undefined,
+          occupantName: s.occupant_name || (s.status === "pending" ? "Pré-reservada" : undefined),
           floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
         })));
       } catch {}
@@ -243,8 +244,11 @@ export default function ClientDashboard() {
       trip_id: selectedPublicTrip.id,
       payment_method: bookingForm.paymentMethod,
       installments: parseInt(bookingForm.installments),
-      status: "pendente"
-    });
+      status: "pendente",
+      seat_number: parseInt(selectedSeat),
+      passenger_name: (user.user_metadata?.name as string) || user.email || "Cliente",
+      phone: (user.user_metadata?.phone as string) || null,
+    } as any);
 
     if (queryErr) {
       console.error("ERRO AO REGISTRAR PRÉ-RESERVA no banco:", queryErr);
@@ -297,7 +301,7 @@ export default function ClientDashboard() {
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Plane className="h-5 w-5 text-primary" />
-              Minha Viagem Reservada
+              Minha Viagem Ativa
             </h2>
             <Badge variant="outline" className="border-emerald-500 text-emerald-500 bg-emerald-500/5 animate-pulse">
               RESERVA CONFIRMADA
@@ -353,23 +357,23 @@ export default function ClientDashboard() {
                     </div>
                   </div>
 
-                  {/* A Jornada do Ônibus (Progress Bar Animada) */}
+                  {/* A Jornada do Ônibus — agora baseada em datas (criação → embarque) */}
                   <div className="pt-2">
                     <div className="flex justify-between items-end text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">
-                      <span>Preparação da Viagem</span>
+                      <span>Contagem para o Embarque</span>
                       <span className="text-orange-500 text-xs text-right leading-none">
-                         {paidPercent >= 100 ? "TUDO PRONTO!" : `Faltam ${100 - paidPercent}%`}
+                         {timePercent >= 100 ? "EMBARCANDO!" : `${daysLeft} dias`}
                       </span>
                     </div>
                     <div className="relative h-8 w-full bg-secondary/80 rounded-full overflow-hidden shadow-inner border border-border/50">
                       <div 
                         className="absolute top-0 left-0 h-full bg-gradient-to-r from-orange-400 via-primary to-emerald-500 transition-all duration-1000 ease-out"
-                        style={{ width: `${Math.max(10, paidPercent)}%` }}
+                        style={{ width: `${Math.max(5, timePercent)}%` }}
                       />
-                      {/* Animated Bus Icon tracking the progress end */}
+                      {/* Animated Bus Icon tracking time progress */}
                       <div 
                         className="absolute top-1/2 -translate-y-1/2 drop-shadow-md text-white transition-all duration-1000 ease-out z-10"
-                        style={{ left: `calc(${Math.max(10, paidPercent)}% - 16px)` }}
+                        style={{ left: `calc(${Math.max(5, timePercent)}% - 16px)` }}
                       >
                         <div className="bg-background p-1.5 rounded-full border border-primary/20 shadow-lg">
                            <Bus className="h-5 w-5 text-primary" />
@@ -377,7 +381,7 @@ export default function ClientDashboard() {
                       </div>
                     </div>
                     <p className="text-[9px] text-center italic text-muted-foreground mt-2">
-                      Progresso baseado na sua confirmação, data e parcelas pagas.
+                      O ônibus avança conforme se aproxima a data da viagem.
                     </p>
                   </div>
                 </div>
@@ -517,54 +521,12 @@ export default function ClientDashboard() {
               <p className="text-sm text-muted-foreground leading-relaxed">{selectedPublicTrip?.description}</p>
             </div>
 
-            {/* Seleção de poltrona */}
-            <div className="p-4 sm:p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em] flex items-center gap-2">
-                  <Armchair className="h-4 w-4 text-primary" />
-                  Escolha sua poltrona
-                </h4>
-                {selectedSeat && (
-                  <Badge className="bg-orange-500 text-white border-orange-700 font-black">
-                    Poltrona {selectedSeat} selecionada
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3 text-[10px] font-black uppercase text-muted-foreground">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Livre</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500 inline-block" /> Selecionada</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block" /> Reservada</span>
-              </div>
-
-              {loadingSeats ? (
-                <div className="text-center py-6 text-sm text-muted-foreground italic">Carregando poltronas...</div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <BusSeatPicker
-                    compact
-                    seats={tripSeats.map(s => ({
-                      ...s,
-                      status: s.number === selectedSeat ? "selected" : s.status,
-                    }))}
-                    onSeatClick={(num) => {
-                      const seat = tripSeats.find(s => s.number === num);
-                      if (seat && seat.status === "occupied") {
-                        toast.error("Esta poltrona já está reservada.");
-                        return;
-                      }
-                      setSelectedSeat(prev => (prev === num ? null : num));
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-
+            {/* 1) Parcelas / Pagamento */}
             <div className="p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-5">
-              <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em]">Simulação de Parcelas</h4>
+              <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em]">1. Forma de Pagamento</h4>
               
               <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
                     { id: "pix", icon: DollarSign, label: "Pix" },
                     { id: "boleto", icon: DollarSign, label: "Boleto" },
@@ -605,6 +567,49 @@ export default function ClientDashboard() {
                   )}
                 </div>
               </div>
+            </div>
+
+            {/* 2) Seleção de poltrona — DEPOIS das parcelas */}
+            <div className="p-4 sm:p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em] flex items-center gap-2">
+                  <Armchair className="h-4 w-4 text-primary" />
+                  2. Escolha sua poltrona
+                </h4>
+                {selectedSeat && (
+                  <Badge className="bg-orange-500 text-white border-orange-700 font-black">
+                    Poltrona {selectedSeat} selecionada
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px] font-black uppercase text-muted-foreground flex-wrap">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Livre</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500 inline-block" /> Selecionada</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block" /> Reservada</span>
+              </div>
+
+              {loadingSeats ? (
+                <div className="text-center py-6 text-sm text-muted-foreground italic">Carregando poltronas...</div>
+              ) : (
+                <div className="overflow-x-auto -mx-2 px-2">
+                  <BusSeatPicker
+                    compact
+                    seats={tripSeats.map(s => ({
+                      ...s,
+                      status: s.number === selectedSeat ? "selected" : s.status,
+                    }))}
+                    onSeatClick={(num) => {
+                      const seat = tripSeats.find(s => s.number === num);
+                      if (seat && seat.status === "occupied") {
+                        toast.error("Esta poltrona já está reservada.");
+                        return;
+                      }
+                      setSelectedSeat(prev => (prev === num ? null : num));
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="space-y-3 pt-2">
