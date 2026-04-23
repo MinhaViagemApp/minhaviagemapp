@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
+import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
+import { mcpService } from "@/services/mcpService";
 import { 
   MessageCircle, 
   Info, 
