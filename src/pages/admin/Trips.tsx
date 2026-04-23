@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Trip {
   id: string;
@@ -40,7 +41,13 @@ const emptyForm = {
   credit_card_fee_percent: "0"
 };
 
+const TRIP_DRAFT_KEY = "minha-viagem-admin-trip-draft";
+
+const hasTripDraftContent = (draft: typeof emptyForm) =>
+  Boolean(draft.destination || draft.start_date || draft.end_date || draft.total_price || draft.description || draft.user_id);
+
 export default function AdminTrips() {
+  const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
@@ -51,6 +58,7 @@ export default function AdminTrips() {
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const fetchTrips = async () => {
     const { data } = await supabase.from("trips").select("*, trip_images(image_url)").order("created_at", { ascending: false });
@@ -72,7 +80,20 @@ export default function AdminTrips() {
 
   useEffect(() => { fetchTrips(); fetchClients(); }, []);
 
-  const openCreate = () => { setEditTrip(null); setForm(emptyForm); setOpen(true); };
+  useEffect(() => {
+    if (!open || editTrip) return;
+    if (!hasTripDraftContent(form)) return;
+    localStorage.setItem(TRIP_DRAFT_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+  }, [form, open, editTrip]);
+
+  const openCreate = () => {
+    setEditTrip(null);
+    const savedDraft = localStorage.getItem(TRIP_DRAFT_KEY);
+    setForm(savedDraft ? { ...emptyForm, ...JSON.parse(savedDraft) } : emptyForm);
+    setDraftSaved(Boolean(savedDraft));
+    setOpen(true);
+  };
 
   const openEdit = (trip: Trip) => {
     setEditTrip(trip);
@@ -91,14 +112,24 @@ export default function AdminTrips() {
     setOpen(true);
   };
 
+  const saveDraftAndClose = () => {
+    if (hasTripDraftContent(form)) {
+      localStorage.setItem(TRIP_DRAFT_KEY, JSON.stringify(form));
+      toast.success("Rascunho da viagem salvo.");
+    }
+    setOpen(false);
+  };
+
   const handleSave = async () => {
+    const { data: companyId } = await supabase.rpc("get_user_company_id", { _user_id: user?.id || "00000000-0000-0000-0000-000000000000" });
     const payload = {
       destination: form.destination,
       start_date: form.start_date,
       end_date: form.end_date,
       total_price: parseFloat(form.total_price),
       description: form.description,
-      user_id: form.user_id || null,
+      user_id: form.user_id || user?.id || "",
+      company_id: companyId || null,
       is_public: form.is_public,
       max_installments_card: parseInt(form.max_installments_card) || 12,
       credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0
@@ -131,6 +162,8 @@ export default function AdminTrips() {
     }
     setIsCreating(false);
     setSelectedFiles([]);
+    localStorage.removeItem(TRIP_DRAFT_KEY);
+    setDraftSaved(false);
     setOpen(false);
     setForm(emptyForm);
     setEditTrip(null);
@@ -202,6 +235,11 @@ export default function AdminTrips() {
         <DialogContent className="glass-strong max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editTrip ? "Editar Viagem" : "Nova Viagem"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
+            {!editTrip && draftSaved && (
+              <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                Rascunho salvo automaticamente neste dispositivo.
+              </div>
+            )}
             <div className="flex items-center space-x-2 bg-secondary/30 p-3 rounded-lg border border-border/50">
               <input 
                 type="checkbox" 
@@ -296,10 +334,17 @@ export default function AdminTrips() {
               </div>
             )}
 
-            <Button onClick={handleSave} disabled={isCreating} className="w-full gradient-accent">
-              {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {editTrip ? "Salvar Alterações" : "Criar Viagem"}
-            </Button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!editTrip && (
+                <Button variant="outline" onClick={saveDraftAndClose} disabled={isCreating}>
+                  Salvar rascunho
+                </Button>
+              )}
+              <Button onClick={handleSave} disabled={isCreating} className="w-full gradient-accent">
+                {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                {editTrip ? "Salvar Alterações" : "Finalizar Cadastro"}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

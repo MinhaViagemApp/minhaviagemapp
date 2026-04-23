@@ -1,15 +1,17 @@
 import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface StatCardProps {
   title: string;
   value: string | number;
   icon: LucideIcon;
   trend?: string;
+  className?: string;
 }
 
-export function StatCard({ title, value, icon: Icon, trend }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, trend, className }: StatCardProps) {
   return (
-    <div className="glass rounded-xl p-5 animate-fade-in">
+    <div className={cn("glass rounded-xl p-5 animate-fade-in", className)}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">{title}</p>

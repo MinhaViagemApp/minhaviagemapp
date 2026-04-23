@@ -14,6 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          payment_method: string
+          payment_status: string
+          total_value: number
+          trip_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          payment_method?: string
+          payment_status?: string
+          total_value?: number
+          trip_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          payment_method?: string
+          payment_status?: string
+          total_value?: number
+          trip_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bus_seats: {
+        Row: {
+          client_id: string | null
+          created_at: string
+          id: string
+          passenger_name: string | null
+          seat_number: number
+          status: string
+          trip_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          passenger_name?: string | null
+          seat_number: number
+          status?: string
+          trip_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string | null
+          created_at?: string
+          id?: string
+          passenger_name?: string | null
+          seat_number?: number
+          status?: string
+          trip_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bus_seats_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bus_seats_trip_id_fkey"
+            columns: ["trip_id"]
+            isOneToOne: false
+            referencedRelation: "trips"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clients: {
+        Row: {
+          company_id: string
+          created_at: string
+          email: string
+          id: string
+          name: string
+          phone: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          email: string
+          id?: string
+          name: string
+          phone?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string
+          phone?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      companies: {
+        Row: {
+          address: string | null
+          cnpj: string | null
+          created_at: string
+          id: string
+          logo_url: string | null
+          name: string
+          phone: string | null
+          pix_key: string | null
+          slug: string
+        }
+        Insert: {
+          address?: string | null
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          pix_key?: string | null
+          slug: string
+        }
+        Update: {
+          address?: string | null
+          cnpj?: string | null
+          created_at?: string
+          id?: string
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          pix_key?: string | null
+          slug?: string
+        }
+        Relationships: []
+      }
+      expenses: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          date: string
+          description: string
+          id: string
+          trip_id: string | null
+        }
+        Insert: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description: string
+          id?: string
+          trip_id?: string | null
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          date?: string
+          description?: string
+          id?: string
+          trip_id?: string | null
+        }
+        Relationships: []
+      }
       installments: {
         Row: {
           amount: number
@@ -21,8 +215,10 @@ export type Database = {
           due_date: string
           id: string
           installment_number: number
+          payment_method: string
           status: string
           trip_id: string
+          user_id: string | null
         }
         Insert: {
           amount: number
@@ -30,8 +226,10 @@ export type Database = {
           due_date: string
           id?: string
           installment_number: number
+          payment_method?: string
           status?: string
           trip_id: string
+          user_id?: string | null
         }
         Update: {
           amount?: number
@@ -39,8 +237,10 @@ export type Database = {
           due_date?: string
           id?: string
           installment_number?: number
+          payment_method?: string
           status?: string
           trip_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -79,85 +279,6 @@ export type Database = {
         }
         Relationships: []
       }
-      installments: {
-        Row: {
-          id: string
-          trip_id: string | null
-          user_id: string
-          installment_number: number
-          amount: number
-          status: string
-          payment_method: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          trip_id?: string | null
-          user_id: string
-          installment_number: number
-          amount: number
-          status?: string
-          payment_method?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          trip_id?: string | null
-          user_id?: string
-          installment_number?: number
-          amount?: number
-          status?: string
-          payment_method?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "installments_trip_id_fkey"
-            columns: ["trip_id"]
-            isOneToOne: false
-            referencedRelation: "trips"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
-      expenses: {
-        Row: {
-          id: string
-          description: string
-          amount: number
-          category: string
-          date: string
-          trip_id: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          description: string
-          amount: number
-          category: string
-          date: string
-          trip_id?: string | null
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          description?: string
-          amount?: number
-          category?: string
-          date?: string
-          trip_id?: string | null
-          created_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "expenses_trip_id_fkey"
-            columns: ["trip_id"]
-            isOneToOne: false
-            referencedRelation: "trips"
-            referencedColumns: ["id"]
-          }
-        ]
-      }
       payments: {
         Row: {
           amount_paid: number
@@ -189,76 +310,52 @@ export type Database = {
       }
       profiles: {
         Row: {
+          address: string | null
           business_address: string | null
           business_cnpj: string | null
           business_logo_url: string | null
           business_name: string | null
           business_phone: string | null
+          cpf: string | null
           created_at: string
           email: string | null
           id: string
           name: string | null
           phone: string | null
-          cpf: string | null
-          address: string | null
           pix_key: string | null
           updated_at: string
         }
         Insert: {
+          address?: string | null
           business_address?: string | null
           business_cnpj?: string | null
           business_logo_url?: string | null
           business_name?: string | null
           business_phone?: string | null
+          cpf?: string | null
           created_at?: string
           email?: string | null
-          id?: string
-          name?: string | null
-          phone?: string | null
-          cpf?: string | null
-          address?: string | null
-          pix_key?: string | null
-          updated_at?: string
-        }
-        Update: {
-          business_address?: string | null
-          business_cnpj?: string | null
-          business_logo_url?: string | null
-          business_name?: string | null
-          business_phone?: string | null
-          created_at?: string
-          email?: string | null
-          id?: string
-          name?: string | null
-          phone?: string | null
-          cpf?: string | null
-          address?: string | null
-          pix_key?: string | null
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      promotions: {
-        Row: {
-          created_at: string
-          description: string | null
-          expires_at: string | null
           id: string
-          title: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          expires_at?: string | null
-          id?: string
-          title: string
+          name?: string | null
+          phone?: string | null
+          pix_key?: string | null
+          updated_at?: string
         }
         Update: {
+          address?: string | null
+          business_address?: string | null
+          business_cnpj?: string | null
+          business_logo_url?: string | null
+          business_name?: string | null
+          business_phone?: string | null
+          cpf?: string | null
           created_at?: string
-          description?: string | null
-          expires_at?: string | null
+          email?: string | null
           id?: string
-          title?: string
+          name?: string | null
+          phone?: string | null
+          pix_key?: string | null
+          updated_at?: string
         }
         Relationships: []
       }
@@ -281,12 +378,45 @@ export type Database = {
           image_url?: string
           promotion_id?: string
         }
+        Relationships: []
+      }
+      promotions: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          description: string | null
+          draft_status: string
+          expires_at: string | null
+          id: string
+          image: string | null
+          title: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          draft_status?: string
+          expires_at?: string | null
+          id?: string
+          image?: string | null
+          title: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          description?: string | null
+          draft_status?: string
+          expires_at?: string | null
+          id?: string
+          image?: string | null
+          title?: string
+        }
         Relationships: [
           {
-            foreignKeyName: "promotion_images_promotion_id_fkey"
-            columns: ["promotion_id"]
+            foreignKeyName: "promotions_company_id_fkey"
+            columns: ["company_id"]
             isOneToOne: false
-            referencedRelation: "promotions"
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -320,47 +450,159 @@ export type Database = {
           },
         ]
       }
-      trips: {
+      trip_queries: {
         Row: {
           created_at: string
-          description: string | null
-          destination: string
-          end_date: string
           id: string
-          start_date: string
-          total_price: number
+          installments: number
+          payment_method: string
+          status: string
+          trip_id: string
           updated_at: string
-          user_id: string | null
-          is_public: boolean | null
-          max_installments_card: number | null
+          user_id: string
         }
         Insert: {
           created_at?: string
-          description?: string | null
-          destination: string
-          end_date: string
           id?: string
-          start_date: string
-          total_price?: number
+          installments?: number
+          payment_method?: string
+          status?: string
+          trip_id: string
           updated_at?: string
-          user_id?: string | null
-          is_public?: boolean | null
-          max_installments_card?: number | null
+          user_id: string
         }
         Update: {
           created_at?: string
-          description?: string | null
-          destination?: string
-          end_date?: string
           id?: string
-          start_date?: string
-          total_price?: number
+          installments?: number
+          payment_method?: string
+          status?: string
+          trip_id?: string
           updated_at?: string
-          user_id?: string | null
-          is_public?: boolean | null
-          max_installments_card?: number | null
+          user_id?: string
         }
         Relationships: []
+      }
+      trip_seats: {
+        Row: {
+          created_at: string
+          id: string
+          seat_number: string
+          status: string
+          trip_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          seat_number: string
+          status?: string
+          trip_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          seat_number?: string
+          status?: string
+          trip_id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      trips: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          credit_card_fee_percent: number
+          description: string | null
+          destination: string
+          draft_status: string
+          end_date: string
+          id: string
+          images: string[]
+          is_public: boolean
+          max_installments_card: number
+          start_date: string
+          total_price: number
+          total_seats: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          credit_card_fee_percent?: number
+          description?: string | null
+          destination: string
+          draft_status?: string
+          end_date: string
+          id?: string
+          images?: string[]
+          is_public?: boolean
+          max_installments_card?: number
+          start_date: string
+          total_price?: number
+          total_seats?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          credit_card_fee_percent?: number
+          description?: string | null
+          destination?: string
+          draft_status?: string
+          end_date?: string
+          id?: string
+          images?: string[]
+          is_public?: boolean
+          max_installments_card?: number
+          start_date?: string
+          total_price?: number
+          total_seats?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trips_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_companies: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -388,6 +630,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_auth_email: { Args: never; Returns: string }
+      get_user_company_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

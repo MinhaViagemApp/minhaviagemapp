@@ -169,6 +169,18 @@ export default function AdminDashboard() {
     setClientInstallments(data || []);
   };
 
+  const toggleInstallmentStatus = async (installmentId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === "pago" ? "pendente" : "pago";
+    const { error } = await supabase.from("installments").update({ status: nextStatus }).eq("id", installmentId);
+    if (error) {
+      toast.error("Erro ao atualizar parcela: " + error.message);
+      return;
+    }
+    toast.success(nextStatus === "pago" ? "Parcela marcada como paga!" : "Parcela voltou para pendente.");
+    if (expandedClient) await toggleClientAccordion(expandedClient);
+    fetchStats();
+  };
+
   const handleQueryStatus = async (queryId: string, newStatus: string) => {
     const { error } = await supabase.from("trip_queries").update({ status: newStatus }).eq("id", queryId);
     if (error) {

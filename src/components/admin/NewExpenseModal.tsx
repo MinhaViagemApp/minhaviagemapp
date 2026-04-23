@@ -11,7 +11,7 @@ import { format } from "date-fns";
 interface Trip {
   id: string;
   destination: string;
-  departure_date: string;
+  start_date: string;
 }
 
 interface NewExpenseModalProps {
@@ -38,8 +38,8 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
   const fetchTrips = async () => {
     const { data, error } = await supabase
       .from("trips")
-      .select("id, destination, departure_date")
-      .order("departure_date", { ascending: false });
+      .select("id, destination, start_date")
+      .order("start_date", { ascending: false });
 
     if (!error && data) {
       setTrips(data);
@@ -151,7 +151,7 @@ export function NewExpenseModal({ isOpen, onClose, onSuccess }: NewExpenseModalP
                 <SelectItem value="none">Nenhuma viagem específica</SelectItem>
                 {trips.map((trip) => (
                   <SelectItem key={trip.id} value={trip.id}>
-                    {trip.destination} ({format(new Date(trip.departure_date), "dd/MM/yyyy")})
+                    {trip.destination} ({format(new Date(trip.start_date), "dd/MM/yyyy")})
                   </SelectItem>
                 ))}
               </SelectContent>

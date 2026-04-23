@@ -17,15 +17,21 @@ interface Promotion {
   preview_image?: string;
 }
 
+const PROMOTION_DRAFT_KEY = "minha-viagem-admin-promotion-draft";
+const emptyPromotionForm = { title: "", description: "", expires_at: "" };
+const hasPromotionDraftContent = (draft: typeof emptyPromotionForm) =>
+  Boolean(draft.title || draft.description || draft.expires_at);
+
 export default function AdminPromotions() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", expires_at: "" });
+  const [form, setForm] = useState(emptyPromotionForm);
   const [photoModal, setPhotoModal] = useState<Promotion | null>(null);
   const [photos, setPhotos] = useState<{ id: string; image_url: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const fetch_ = async () => {
     const { data } = await supabase.from("promotions").select("*, promotion_images(image_url)").order("created_at", { ascending: false });
@@ -37,6 +43,27 @@ export default function AdminPromotions() {
   };
 
   useEffect(() => { fetch_(); }, []);
+
+  useEffect(() => {
+    if (!open || !hasPromotionDraftContent(form)) return;
+    localStorage.setItem(PROMOTION_DRAFT_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+  }, [form, open]);
+
+  const openCreate = () => {
+    const savedDraft = localStorage.getItem(PROMOTION_DRAFT_KEY);
+    setForm(savedDraft ? { ...emptyPromotionForm, ...JSON.parse(savedDraft) } : emptyPromotionForm);
+    setDraftSaved(Boolean(savedDraft));
+    setOpen(true);
+  };
+
+  const saveDraftAndClose = () => {
+    if (hasPromotionDraftContent(form)) {
+      localStorage.setItem(PROMOTION_DRAFT_KEY, JSON.stringify(form));
+      toast.success("Rascunho da promoção salvo.");
+    }
+    setOpen(false);
+  };
 
   const handleCreate = async () => {
     setIsCreating(true);
@@ -58,7 +85,9 @@ export default function AdminPromotions() {
 
     toast.success("Promoção criada com sucesso!");
     setOpen(false);
-    setForm({ title: "", description: "", expires_at: "" });
+    setForm(emptyPromotionForm);
+    localStorage.removeItem(PROMOTION_DRAFT_KEY);
+    setDraftSaved(false);
     setSelectedFiles([]);
     setIsCreating(false);
     fetch_();
@@ -122,12 +151,15 @@ export default function AdminPromotions() {
           <p className="text-muted-foreground">Ofertas exclusivas para seus clientes</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gradient-accent"><Plus className="mr-2 h-4 w-4" /> Nova Promoção</Button>
-          </DialogTrigger>
+          <Button className="gradient-accent" onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Nova Promoção</Button>
           <DialogContent className="glass-strong">
             <DialogHeader><DialogTitle>Nova Promoção</DialogTitle></DialogHeader>
             <div className="space-y-4">
+              {draftSaved && (
+                <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                  Rascunho salvo automaticamente neste dispositivo.
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Título</Label>
                 <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="bg-secondary/50" />
@@ -163,10 +195,13 @@ export default function AdminPromotions() {
                 )}
               </div>
 
-              <Button onClick={handleCreate} disabled={isCreating} className="w-full gradient-accent">
-                {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {isCreating ? "Criando..." : "Criar e Salvar"}
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button variant="outline" onClick={saveDraftAndClose} disabled={isCreating}>Salvar rascunho</Button>
+                <Button onClick={handleCreate} disabled={isCreating} className="w-full gradient-accent">
+                  {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCreating ? "Criando..." : "Finalizar Cadastro"}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>

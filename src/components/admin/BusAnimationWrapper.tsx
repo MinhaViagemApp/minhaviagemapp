@@ -33,8 +33,7 @@ export const BusAnimationWrapper: React.FC<BusAnimationWrapperProps> = ({ childr
             exit={{ scale: 2, opacity: 0 }}
             transition={{ 
               duration: 1.5, 
-              ease: "easeOut",
-              exit: { duration: 0.8 }
+              ease: "easeOut"
             }}
             className="flex flex-col items-center gap-4"
           >
