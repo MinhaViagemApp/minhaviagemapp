@@ -22,12 +22,14 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: normalizedEmail,
       password,
       options: {
         data: { name, role, phone },
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: `${window.location.origin}/`,
       },
     });
 
@@ -44,9 +46,24 @@ export default function Register() {
       });
     }
 
+    // Se a sessão não veio (caso o auto-confirm ainda não tenha propagado),
+    // fazemos login imediatamente com as credenciais informadas.
+    if (!data.session) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+      if (signInError) {
+        setLoading(false);
+        toast.success("Conta criada! Faça login para continuar.");
+        navigate("/login");
+        return;
+      }
+    }
+
     setLoading(false);
     toast.success("Conta criada com sucesso!");
-    navigate("/login");
+    navigate("/");
   };
 
   return (
