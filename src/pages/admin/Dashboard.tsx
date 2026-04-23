@@ -150,8 +150,11 @@ export default function AdminDashboard() {
     setSelectedTrip(trip);
     setModal("seating-view");
     
-    const { data: allProfiles } = await supabase.from("profiles").select("id, name, email").order("name");
-    if (allProfiles) setClients(allProfiles.map(p => ({ ...p, phone: null, created_at: "" })));
+    const { data: companyClients } = await supabase
+      .from("clients")
+      .select("id, name, email, phone, created_at, company_id")
+      .order("name");
+    if (companyClients) setClients(companyClients as any);
 
     const data = await mcpService.getSeats(trip.id);
     
@@ -159,7 +162,7 @@ export default function AdminDashboard() {
       id: s.id,
       number: s.seat_number.padStart(2, '0'),
       status: s.status === 'free' ? 'available' : 'occupied',
-      occupantName: s.occupant_name || (s.user_id ? (allProfiles?.find(c => c.id === s.user_id)?.name || "Reservado") : undefined),
+      occupantName: s.occupant_name || (s.client_id ? (companyClients?.find(c => c.id === s.client_id)?.name || "Reservado") : undefined),
       floor: parseInt(s.seat_number) <= 44 ? "superior" : "inferior"
     })));
   };
