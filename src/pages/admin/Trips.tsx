@@ -149,10 +149,10 @@ export default function AdminTrips() {
         toast.info("Enviando imagens de destino...");
         for (const file of selectedFiles) {
           const ext = file.name.split(".").pop();
-          const filePath = `trips/${trip.id}/${Date.now()}-${Math.random()}.${ext}`;
-          const { error: upErr } = await supabase.storage.from("trip_images").upload(filePath, file, { upsert: true });
+            const filePath = `trips/${trip.id}/${Date.now()}-${Math.random()}.${ext}`;
+            const { error: upErr } = await supabase.storage.from("trip-images").upload(filePath, file, { upsert: true });
           if (!upErr) {
-            const { data: urlData } = supabase.storage.from("trip_images").getPublicUrl(filePath);
+            const { data: urlData } = supabase.storage.from("trip-images").getPublicUrl(filePath);
             await supabase.from("trip_images").insert({ trip_id: trip.id, image_url: urlData.publicUrl });
           }
         }
@@ -188,19 +188,21 @@ export default function AdminTrips() {
     setUploading(true);
     const ext = file.name.split(".").pop();
     const filePath = `trips/${photoModal.id}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("trip_images").upload(filePath, file, { upsert: true });
+    const { error: upErr } = await supabase.storage.from("trip-images").upload(filePath, file, { upsert: true });
     if (upErr) { toast.error(upErr.message); setUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("trip_images").getPublicUrl(filePath);
+    const { data: urlData } = supabase.storage.from("trip-images").getPublicUrl(filePath);
     await supabase.from("trip_images").insert({ trip_id: photoModal.id, image_url: urlData.publicUrl });
     setPhotos(prev => [...prev, { id: Date.now().toString(), image_url: urlData.publicUrl }]);
     setUploading(false);
     toast.success("Foto adicionada!");
+    fetchTrips();
   };
 
   const deletePhoto = async (photoId: string) => {
     await supabase.from("trip_images").delete().eq("id", photoId);
     setPhotos(prev => prev.filter(p => p.id !== photoId));
     toast.success("Foto removida!");
+    fetchTrips();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {

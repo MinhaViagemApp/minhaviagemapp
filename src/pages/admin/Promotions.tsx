@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Tag, Calendar, Image, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Promotion {
   id: string;
@@ -23,6 +24,7 @@ const hasPromotionDraftContent = (draft: typeof emptyPromotionForm) =>
   Boolean(draft.title || draft.description || draft.expires_at);
 
 export default function AdminPromotions() {
+  const { user } = useAuth();
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyPromotionForm);
@@ -67,7 +69,8 @@ export default function AdminPromotions() {
 
   const handleCreate = async () => {
     setIsCreating(true);
-    const { data: promo, error } = await supabase.from("promotions").insert(form).select().single();
+    const { data: companyId } = await supabase.rpc("get_user_company_id", { _user_id: user?.id || "00000000-0000-0000-0000-000000000000" });
+    const { data: promo, error } = await supabase.from("promotions").insert({ ...form, company_id: companyId || null }).select().single();
     if (error) { toast.error(error.message); setIsCreating(false); return; }
     
     if (selectedFiles.length > 0) {
@@ -75,9 +78,9 @@ export default function AdminPromotions() {
       for (const file of selectedFiles) {
         const ext = file.name.split(".").pop();
         const filePath = `promotions/${promo.id}/${Date.now()}-${Math.random()}.${ext}`;
-        const { error: upErr } = await supabase.storage.from("promotions").upload(filePath, file, { upsert: true });
+        const { error: upErr } = await supabase.storage.from("promotion-images").upload(filePath, file, { upsert: true });
         if (!upErr) {
-          const { data: urlData } = supabase.storage.from("promotions").getPublicUrl(filePath);
+          const { data: urlData } = supabase.storage.from("promotion-images").getPublicUrl(filePath);
           await supabase.from("promotion_images").insert({ promotion_id: promo.id, image_url: urlData.publicUrl });
         }
       }
@@ -126,9 +129,9 @@ export default function AdminPromotions() {
     setUploading(true);
     const ext = file.name.split(".").pop();
     const filePath = `promotions/${photoModal.id}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("promotions").upload(filePath, file, { upsert: true });
+    const { error: upErr } = await supabase.storage.from("promotion-images").upload(filePath, file, { upsert: true });
     if (upErr) { toast.error(upErr.message); setUploading(false); return; }
-    const { data: urlData } = supabase.storage.from("promotions").getPublicUrl(filePath);
+    const { data: urlData } = supabase.storage.from("promotion-images").getPublicUrl(filePath);
     await supabase.from("promotion_images").insert({ promotion_id: photoModal.id, image_url: urlData.publicUrl });
     setPhotos(prev => [...prev, { id: Date.now().toString(), image_url: urlData.publicUrl }]);
     setUploading(false);
@@ -267,7 +270,7 @@ export default function AdminPromotions() {
             <CardContent className="space-y-2">
               <p className="text-sm text-muted-foreground">{promo.description}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3 w-3 text-foreground" />
                 Válida até {new Date(promo.expires_at).toLocaleDateString("pt-BR")}
               </div>
             </CardContent>

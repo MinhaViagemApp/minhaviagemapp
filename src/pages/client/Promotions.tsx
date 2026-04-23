@@ -20,6 +20,7 @@ export default function ClientPromotions() {
       const { data } = await supabase
         .from("promotions")
         .select("*, promotion_images(image_url)")
+        .eq("draft_status", "published")
         .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
       
@@ -60,7 +61,7 @@ export default function ClientPromotions() {
               <p className="text-sm text-muted-foreground line-clamp-3">{promo.description}</p>
               <div className="flex items-center justify-between mt-4">
                 <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-bold uppercase">
-                  <Calendar className="h-3 w-3" />
+                  <Calendar className="h-3 w-3 text-foreground" />
                   Até {(() => { try { return new Date(promo.expires_at).toLocaleDateString("pt-BR"); } catch { return "—"; } })()}
                 </div>
                 <Button variant="ghost" size="sm" className="text-xs text-primary font-bold h-7">
