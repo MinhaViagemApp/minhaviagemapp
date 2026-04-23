@@ -270,7 +270,7 @@ export default function AdminPromotions() {
             <CardContent className="space-y-2">
               <p className="text-sm text-muted-foreground">{promo.description}</p>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Calendar className="h-3 w-3" />
+                <Calendar className="h-3 w-3 text-foreground" />
                 Válida até {new Date(promo.expires_at).toLocaleDateString("pt-BR")}
               </div>
             </CardContent>
