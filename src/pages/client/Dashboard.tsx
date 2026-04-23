@@ -74,7 +74,7 @@ export default function ClientDashboard() {
         const mapped = seats.map((s: any) => ({
           number: s.seat_number,
           status: s.status === "free" ? "available" : "occupied",
-          occupantName: s.occupant_name || undefined,
+          occupantName: s.occupant_name || (s.status === "pending" ? "Pré-reservada" : undefined),
           floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
         }));
         setTripSeats(mapped);
