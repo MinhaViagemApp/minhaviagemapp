@@ -195,12 +195,14 @@ export default function AdminTrips() {
     setPhotos(prev => [...prev, { id: Date.now().toString(), image_url: urlData.publicUrl }]);
     setUploading(false);
     toast.success("Foto adicionada!");
+    fetchTrips();
   };
 
   const deletePhoto = async (photoId: string) => {
     await supabase.from("trip_images").delete().eq("id", photoId);
     setPhotos(prev => prev.filter(p => p.id !== photoId));
     toast.success("Foto removida!");
+    fetchTrips();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
