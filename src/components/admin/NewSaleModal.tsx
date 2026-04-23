@@ -43,7 +43,9 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
     const { data } = await supabase
       .from("trips")
       .select("*")
-      .gte("end_date", new Date().toISOString())
+      .in("status", ["scheduled", "active"])
+      .eq("draft_status", "published")
+      .gte("end_date", new Date().toISOString().split("T")[0])
       .order("start_date", { ascending: true });
     setTrips(data || []);
   };
@@ -58,7 +60,7 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         id: s.id,
         number: s.seat_number.padStart(2, '0'),
         status: s.status === 'free' ? 'available' : 'occupied',
-        occupantName: s.user_id ? "Ocupado" : undefined,
+        occupantName: s.occupant_name || (s.user_id ? "Ocupado" : undefined),
         floor: parseInt(s.seat_number) <= 44 ? "superior" : "inferior"
       })));
     } catch {
