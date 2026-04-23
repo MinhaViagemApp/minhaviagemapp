@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface Trip {
   id: string;
@@ -46,6 +47,7 @@ const hasTripDraftContent = (draft: typeof emptyForm) =>
   Boolean(draft.destination || draft.start_date || draft.end_date || draft.total_price || draft.description || draft.user_id);
 
 export default function AdminTrips() {
+  const { user } = useAuth();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
@@ -119,13 +121,15 @@ export default function AdminTrips() {
   };
 
   const handleSave = async () => {
+    const { data: companyId } = await supabase.rpc("get_user_company_id", { _user_id: user?.id || "00000000-0000-0000-0000-000000000000" });
     const payload = {
       destination: form.destination,
       start_date: form.start_date,
       end_date: form.end_date,
       total_price: parseFloat(form.total_price),
       description: form.description,
-      user_id: form.user_id || null,
+      user_id: form.user_id || user?.id || "",
+      company_id: companyId || null,
       is_public: form.is_public,
       max_installments_card: parseInt(form.max_installments_card) || 12,
       credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0
