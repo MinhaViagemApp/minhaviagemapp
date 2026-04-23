@@ -174,7 +174,7 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
       for (const seatNum of selectedSeats) {
         const targetSeat = saleSeatData.find(s => s.number === seatNum);
         if (!targetSeat) throw new Error(`Poltrona ${seatNum} não encontrada.`);
-        await mcpService.reserveSeat(targetSeat.id, userId, form.name);
+        await mcpService.reserveSeat(form.trip_id, seatNum, userId, form.name);
       }
 
       await supabase.from("trip_seats").insert(selectedSeats.map(seatNum => ({

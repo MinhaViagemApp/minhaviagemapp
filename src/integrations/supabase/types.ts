@@ -651,6 +651,30 @@ export type Database = {
         Returns: boolean
       }
       refresh_trip_statuses: { Args: never; Returns: undefined }
+      reserve_bus_seat: {
+        Args: {
+          _client_id: string
+          _passenger_name: string
+          _seat_number: number
+          _trip_id: string
+        }
+        Returns: {
+          client_id: string | null
+          created_at: string
+          id: string
+          passenger_name: string | null
+          seat_number: number
+          status: string
+          trip_id: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "bus_seats"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role: "admin" | "cliente"

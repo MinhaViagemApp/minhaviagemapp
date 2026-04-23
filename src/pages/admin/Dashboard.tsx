@@ -150,7 +150,7 @@ export default function AdminDashboard() {
     try {
       const selectedClient = clients.find(client => client.id === selectedClientForSeat);
       const passengerName = selectedClient?.name || manualNameForSeat || "Passageiro";
-      await mcpService.reserveSeat(targetSeat.id, selectedClientForSeat || "manual-entry", passengerName);
+      await mcpService.reserveSeat(selectedTrip.id, assignSeat, selectedClientForSeat || null, passengerName);
       if (selectedClientForSeat) {
         await supabase.from("trip_seats").insert({
           trip_id: selectedTrip.id,
