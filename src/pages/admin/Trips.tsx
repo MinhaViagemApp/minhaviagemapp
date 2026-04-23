@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2 } from "lucide-react";
+import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2, Trash2, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -24,6 +24,7 @@ interface Trip {
   is_public?: boolean;
   max_installments_card?: number;
   credit_card_fee_percent?: number;
+  status?: "scheduled" | "active" | "completed" | "cancelled" | "archived" | "draft";
 }
 
 interface Client { id: string; name: string }
@@ -59,8 +60,10 @@ export default function AdminTrips() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [viewMode, setViewMode] = useState<"active" | "history">("active");
 
   const fetchTrips = async () => {
+    await supabase.rpc("refresh_trip_statuses" as any);
     const { data } = await supabase.from("trips").select("*, trip_images(image_url)").order("created_at", { ascending: false });
     const allTrips = data || [];
     const userIds = [...new Set(allTrips.map(t => t.user_id))];
@@ -70,7 +73,7 @@ export default function AdminTrips() {
       ...t, 
       client_name: profileMap.get(t.user_id) || "—",
       preview_image: (t as any).trip_images?.[0]?.image_url || null
-    })));
+    })) as Trip[]);
   };
 
   const fetchClients = async () => {
@@ -132,7 +135,9 @@ export default function AdminTrips() {
       company_id: companyId || null,
       is_public: form.is_public,
       max_installments_card: parseInt(form.max_installments_card) || 12,
-      credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0
+      credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0,
+      draft_status: "published",
+      status: new Date(form.end_date) < new Date() ? "completed" : new Date(form.start_date) <= new Date() ? "active" : "scheduled"
     };
 
     if (editTrip) {
@@ -220,6 +225,22 @@ export default function AdminTrips() {
     setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const deleteTrip = async (trip: Trip) => {
+    if (!window.confirm(`Excluir a viagem para "${trip.destination}"? Esta ação não pode ser desfeita.`)) return;
+    await supabase.from("trip_images").delete().eq("trip_id", trip.id);
+    await supabase.from("trip_seats").delete().eq("trip_id", trip.id);
+    await (supabase as any).from("bus_seats").delete().eq("trip_id", trip.id);
+    const { error } = await supabase.from("trips").delete().eq("id", trip.id);
+    if (error) { toast.error("Erro ao excluir viagem: " + error.message); return; }
+    toast.success("Viagem excluída com sucesso.");
+    fetchTrips();
+  };
+
+  const visibleTrips = trips.filter(trip => {
+    const status = trip.status || (new Date(trip.end_date) < new Date() ? "completed" : "scheduled");
+    return viewMode === "history" ? ["completed", "cancelled", "archived"].includes(status) : ["scheduled", "active", "draft"].includes(status);
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -227,9 +248,15 @@ export default function AdminTrips() {
           <h1 className="text-2xl font-bold">Viagens</h1>
           <p className="text-muted-foreground">Gerencie as viagens dos clientes</p>
         </div>
-        <Button className="gradient-accent" onClick={openCreate}>
-          <Plus className="mr-2 h-4 w-4" /> Nova Viagem
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant={viewMode === "active" ? "default" : "outline"} onClick={() => setViewMode("active")}>Ativas</Button>
+          <Button variant={viewMode === "history" ? "default" : "outline"} onClick={() => setViewMode("history")}>
+            <Archive className="mr-2 h-4 w-4" /> Histórico
+          </Button>
+          <Button className="gradient-accent" onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" /> Nova Viagem
+          </Button>
+        </div>
       </div>
 
       {/* Create/Edit Dialog */}
@@ -384,7 +411,7 @@ export default function AdminTrips() {
       </Dialog>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {trips.map((trip) => (
+        {visibleTrips.map((trip) => (
           <Card key={trip.id} className="glass animate-fade-in overflow-hidden">
             {trip.preview_image ? (
               <div className="relative h-40 w-full">
@@ -411,6 +438,9 @@ export default function AdminTrips() {
                   <Button variant="ghost" size="icon" className="h-8 w-8 bg-secondary/50" onClick={() => openEdit(trip)}>
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 bg-secondary/50" onClick={() => deleteTrip(trip)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
               </CardTitle>
             </CardHeader>
@@ -420,12 +450,13 @@ export default function AdminTrips() {
                 {new Date(trip.start_date).toLocaleDateString("pt-BR")} - {new Date(trip.end_date).toLocaleDateString("pt-BR")}
               </div>
               <p className="text-sm text-muted-foreground">Cliente: {trip.is_public ? <span className="text-emerald-500 font-bold">PÚBLICA</span> : (trip.client_name || "—")}</p>
+              <p className="text-xs font-bold uppercase text-primary">{trip.status === "completed" ? "Concluída" : trip.status === "active" ? "Ativa" : "Programada"}</p>
               <p className="text-lg font-bold text-primary">R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
             </CardContent>
           </Card>
         ))}
-        {trips.length === 0 && (
-          <div className="col-span-full text-center text-muted-foreground py-12">Nenhuma viagem cadastrada</div>
+        {visibleTrips.length === 0 && (
+          <div className="col-span-full text-center text-muted-foreground py-12">Nenhuma viagem {viewMode === "history" ? "no histórico" : "ativa ou programada"}</div>
         )}
       </div>
     </div>

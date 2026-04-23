@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Seat {
   id: string;
@@ -12,6 +7,8 @@ export interface Seat {
   user_id: string | null;
   reserved_at: string | null;
   trip_id?: string | null;
+  occupant_name?: string | null;
+  client_id?: string | null;
 }
 
 export const mcpService = {
@@ -19,9 +16,9 @@ export const mcpService = {
    * Busca poltronas da tabela 'seats'
    */
   async getSeats(trip_id?: string): Promise<Seat[]> {
-    let query = supabase
-      .from('seats')
-      .select('*')
+    let query = (supabase as any)
+      .from('bus_seats')
+      .select('id, trip_id, seat_number, status, passenger_name, client_id, updated_at')
       .order('seat_number', { ascending: true });
 
     if (trip_id) {
@@ -40,21 +37,30 @@ export const mcpService = {
       return await this.seedSeats(trip_id);
     }
 
-    return data as Seat[];
+    return data.map((seat: any) => ({
+      id: seat.id,
+      seat_number: String(seat.seat_number).padStart(2, '0'),
+      status: seat.status === 'livre' || seat.status === 'free' ? 'free' : 'reserved',
+      user_id: seat.client_id,
+      client_id: seat.client_id,
+      occupant_name: seat.passenger_name,
+      reserved_at: seat.updated_at,
+      trip_id: seat.trip_id,
+    })) as Seat[];
   },
 
   /**
    * Cria 60 poltronas iniciais para uma viagem
    */
   async seedSeats(trip_id: string): Promise<Seat[]> {
-    const seatsToInsert = Array.from({ length: 60 }, (_, i) => ({
-      seat_number: (i + 1).toString().padStart(2, '0'),
-      status: 'free',
+    const seatsToInsert = Array.from({ length: 52 }, (_, i) => ({
+      seat_number: i + 1,
+      status: 'livre',
       trip_id: trip_id
     }));
 
-    const { data, error } = await supabase
-      .from('seats')
+    const { data, error } = await (supabase as any)
+      .from('bus_seats')
       .insert(seatsToInsert)
       .select();
 
@@ -63,30 +69,41 @@ export const mcpService = {
       throw error;
     }
 
-    return data as Seat[];
+    return data.map((seat: any) => ({
+      id: seat.id,
+      seat_number: String(seat.seat_number).padStart(2, '0'),
+      status: 'free',
+      user_id: null,
+      client_id: null,
+      occupant_name: null,
+      reserved_at: null,
+      trip_id: seat.trip_id,
+    })) as Seat[];
   },
 
   /**
    * Reserva uma poltrona se ela estiver livre ('free')
    */
-  async reserveSeat(seat_id: string, user_id: string): Promise<void> {
-    const { data, error } = await supabase
-      .from('seats')
+  async reserveSeat(seat_id: string, client_id: string, passenger_name: string): Promise<void> {
+    const { data, error } = await (supabase as any)
+      .from('bus_seats')
       .update({
-        status: 'reserved',
-        user_id: user_id,
-        reserved_at: new Date().toISOString()
+        status: 'ocupada',
+        client_id,
+        passenger_name,
+        updated_at: new Date().toISOString()
       })
       .eq('id', seat_id)
-      .eq('status', 'free'); // Condição obrigatória: só atualizar se status for 'free'
+      .in('status', ['livre', 'free'])
+      .select('id');
 
     if (error) {
       console.error("Erro ao reservar poltrona:", error.message);
       throw error;
     }
 
-    // Se nenhuma linha foi afetada, significa que a poltrona não estava 'free'
-    // No Supabase/Postgrest, o update retorna o que foi atualizado. 
-    // Se não retornar nada (ou dependendo da config), podemos assumir falha silenciosa se não checarmos data.
+    if (!data || data.length === 0) {
+      throw new Error('Esta poltrona já foi reservada por outra pessoa.');
+    }
   }
 };

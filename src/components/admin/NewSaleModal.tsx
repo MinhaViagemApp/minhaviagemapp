@@ -43,7 +43,9 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
     const { data } = await supabase
       .from("trips")
       .select("*")
-      .gte("end_date", new Date().toISOString())
+      .in("status", ["scheduled", "active"])
+      .eq("draft_status", "published")
+      .gte("end_date", new Date().toISOString().split("T")[0])
       .order("start_date", { ascending: true });
     setTrips(data || []);
   };
@@ -58,7 +60,7 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         id: s.id,
         number: s.seat_number.padStart(2, '0'),
         status: s.status === 'free' ? 'available' : 'occupied',
-        occupantName: s.user_id ? "Ocupado" : undefined,
+        occupantName: s.occupant_name || (s.user_id ? "Ocupado" : undefined),
         floor: parseInt(s.seat_number) <= 44 ? "superior" : "inferior"
       })));
     } catch {
@@ -172,8 +174,15 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
       for (const seatNum of selectedSeats) {
         const targetSeat = saleSeatData.find(s => s.number === seatNum);
         if (!targetSeat) throw new Error(`Poltrona ${seatNum} não encontrada.`);
-        await mcpService.reserveSeat(targetSeat.id, userId);
+        await mcpService.reserveSeat(targetSeat.id, userId, form.name);
       }
+
+      await supabase.from("trip_seats").insert(selectedSeats.map(seatNum => ({
+        trip_id: form.trip_id,
+        user_id: userId,
+        seat_number: seatNum,
+        status: "reserved"
+      })));
 
       // 3. Gerar Parcelas com base no preço × qtd poltronas
       if (selectedTrip) {
@@ -200,6 +209,7 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
       }
 
       toast.success(`✅ ${selectedSeats.length} poltrona(s) reservada(s) com sucesso!`);
+      await handleTripChange(form.trip_id);
       onSuccess?.();
       onOpenChange(false);
       resetForm();

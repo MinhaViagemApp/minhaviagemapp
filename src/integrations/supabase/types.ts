@@ -532,6 +532,7 @@ export type Database = {
           is_public: boolean
           max_installments_card: number
           start_date: string
+          status: string
           total_price: number
           total_seats: number
           updated_at: string
@@ -550,6 +551,7 @@ export type Database = {
           is_public?: boolean
           max_installments_card?: number
           start_date: string
+          status?: string
           total_price?: number
           total_seats?: number
           updated_at?: string
@@ -568,6 +570,7 @@ export type Database = {
           is_public?: boolean
           max_installments_card?: number
           start_date?: string
+          status?: string
           total_price?: number
           total_seats?: number
           updated_at?: string
@@ -647,6 +650,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      refresh_trip_statuses: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "cliente"
