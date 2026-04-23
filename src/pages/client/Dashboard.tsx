@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
+import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
+import { mcpService } from "@/services/mcpService";
 import { 
   MessageCircle, 
   Info, 
@@ -54,6 +56,36 @@ export default function ClientDashboard() {
     paymentMethod: "pix",
     installments: "1"
   });
+  const [tripSeats, setTripSeats] = useState<any[]>([]);
+  const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
+  const [loadingSeats, setLoadingSeats] = useState(false);
+
+  // Quando abrir o modal de pré-reserva, carregar poltronas da viagem
+  useEffect(() => {
+    const loadSeats = async () => {
+      if (!selectedPublicTrip) {
+        setTripSeats([]);
+        setSelectedSeat(null);
+        return;
+      }
+      setLoadingSeats(true);
+      try {
+        const seats = await mcpService.getSeats(selectedPublicTrip.id);
+        const mapped = seats.map((s: any) => ({
+          number: s.seat_number,
+          status: s.status === "free" ? "available" : "occupied",
+          occupantName: s.occupant_name || undefined,
+          floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
+        }));
+        setTripSeats(mapped);
+      } catch (e) {
+        console.error("Erro ao carregar poltronas:", e);
+      } finally {
+        setLoadingSeats(false);
+      }
+    };
+    loadSeats();
+  }, [selectedPublicTrip]);
 
   useEffect(() => {
     if (!user) return;
@@ -179,8 +211,33 @@ export default function ClientDashboard() {
 
   const handleBooking = async () => {
     if (!selectedPublicTrip || !user) return;
-    
-    // 1. Registrar a pré-reserva no banco de dados
+
+    if (!selectedSeat) {
+      toast.error("Selecione uma poltrona antes de confirmar a pré-reserva.");
+      return;
+    }
+
+    // 1. Reservar a poltrona (status fica como reservada até o admin confirmar)
+    try {
+      const passengerName = (user.user_metadata?.name as string) || user.email || "Cliente";
+      await mcpService.reserveSeat(selectedPublicTrip.id, selectedSeat, null, passengerName);
+    } catch (err: any) {
+      console.error("Erro ao reservar poltrona:", err);
+      toast.error(err?.message || "Esta poltrona já foi reservada. Escolha outra.");
+      // recarrega o mapa de poltronas
+      try {
+        const seats = await mcpService.getSeats(selectedPublicTrip.id);
+        setTripSeats(seats.map((s: any) => ({
+          number: s.seat_number,
+          status: s.status === "free" ? "available" : "occupied",
+          occupantName: s.occupant_name || undefined,
+          floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
+        })));
+      } catch {}
+      return;
+    }
+
+    // 2. Registrar a pré-reserva
     const { error: queryErr } = await supabase.from("trip_queries").insert({
       user_id: user.id,
       trip_id: selectedPublicTrip.id,
@@ -191,27 +248,25 @@ export default function ClientDashboard() {
 
     if (queryErr) {
       console.error("ERRO AO REGISTRAR PRÉ-RESERVA no banco:", queryErr);
-      if (queryErr?.message?.includes("relation \"public.trip_queries\" does not exist")) {
-        toast.error("O banco de dados não foi atualizado. Peça ao admin para rodar o script SQL de hoje.");
-      } else {
-        toast.error("Erro ao registrar interesse. Tente novamente.");
-      }
+      toast.error("Erro ao registrar interesse. Tente novamente.");
       return;
     }
 
-    // 2. Notificar o administrador
+    // 3. Notificar o administrador
     const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin");
     if (admins && admins.length > 0) {
+      const clientName = user.user_metadata?.name || user.email;
       const notifications = admins.map(admin => ({
         user_id: admin.user_id,
-        title: "Nova consulta de viagem",
-        message: `O cliente ${user.user_metadata?.name || user.email} tem interesse na viagem para ${selectedPublicTrip.destination}. Confira no painel!`
+        title: "Nova pré-reserva",
+        message: `${clientName} pré-reservou a poltrona ${selectedSeat} para ${selectedPublicTrip.destination}. Confira no painel!`
       }));
       await supabase.from("notifications").insert(notifications);
     }
 
-    toast.success("Pré-reserva confirmada! O administrador entrará em contato em breve.");
+    toast.success(`Pré-reserva confirmada! Poltrona ${selectedSeat} aguardando aprovação do administrador.`);
     setSelectedPublicTrip(null);
+    setSelectedSeat(null);
   };
 
   const paidPercent = trip && trip.total_price > 0 ? Math.min(100, Math.round((paidAmount / trip.total_price) * 100)) : 0;
@@ -446,7 +501,7 @@ export default function ClientDashboard() {
       </div>
 
       <Dialog open={!!selectedPublicTrip} onOpenChange={() => setSelectedPublicTrip(null)}>
-        <DialogContent className="glass-strong max-w-md w-[95vw] border-primary/20 shadow-2xl">
+        <DialogContent className="glass-strong max-w-3xl w-[95vw] max-h-[92vh] overflow-y-auto border-primary/20 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-2xl font-black">
               <div className="bg-primary/20 p-2 rounded-lg"><Plane className="h-6 w-6 text-primary" /></div>
@@ -460,6 +515,49 @@ export default function ClientDashboard() {
                 {selectedPublicTrip ? `${(() => { try { return new Date(selectedPublicTrip.start_date).toLocaleDateString("pt-BR"); } catch { return "-"; } })()} — ${(() => { try { return new Date(selectedPublicTrip.end_date).toLocaleDateString("pt-BR"); } catch { return "-"; } })()}` : ""}
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{selectedPublicTrip?.description}</p>
+            </div>
+
+            {/* Seleção de poltrona */}
+            <div className="p-4 sm:p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em] flex items-center gap-2">
+                  <Armchair className="h-4 w-4 text-primary" />
+                  Escolha sua poltrona
+                </h4>
+                {selectedSeat && (
+                  <Badge className="bg-orange-500 text-white border-orange-700 font-black">
+                    Poltrona {selectedSeat} selecionada
+                  </Badge>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3 text-[10px] font-black uppercase text-muted-foreground">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-500 inline-block" /> Livre</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500 inline-block" /> Selecionada</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-red-500 inline-block" /> Reservada</span>
+              </div>
+
+              {loadingSeats ? (
+                <div className="text-center py-6 text-sm text-muted-foreground italic">Carregando poltronas...</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <BusSeatPicker
+                    compact
+                    seats={tripSeats.map(s => ({
+                      ...s,
+                      status: s.number === selectedSeat ? "selected" : s.status,
+                    }))}
+                    onSeatClick={(num) => {
+                      const seat = tripSeats.find(s => s.number === num);
+                      if (seat && seat.status === "occupied") {
+                        toast.error("Esta poltrona já está reservada.");
+                        return;
+                      }
+                      setSelectedSeat(prev => (prev === num ? null : num));
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             <div className="p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-5">
