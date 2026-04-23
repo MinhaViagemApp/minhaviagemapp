@@ -190,21 +190,14 @@ export default function AdminDashboard() {
       const selectedClient = clients.find(client => client.id === selectedClientForSeat);
       const passengerName = selectedClient?.name || manualNameForSeat || "Passageiro";
       await mcpService.reserveSeat(selectedTrip.id, assignSeat, selectedClientForSeat || null, passengerName);
-      if (selectedClientForSeat) {
-        await supabase.from("trip_seats").insert({
-          trip_id: selectedTrip.id,
-          user_id: selectedClientForSeat,
-          seat_number: assignSeat,
-          status: "reserved"
-        });
-      }
       toast.success(`✅ Poltrona ${assignSeat} reservada com sucesso!`);
       setAssignSeat(null);
       setSelectedClientForSeat("");
       setManualNameForSeat("");
       handleTripSelect(selectedTrip);
     } catch (error: any) {
-      toast.error("Falha na reserva: Poltrona pode estar ocupada.");
+      console.error("Erro ao reservar poltrona:", error);
+      toast.error(`Falha na reserva: ${error?.message || "erro desconhecido"}`);
     }
   };
 
