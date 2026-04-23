@@ -217,12 +217,13 @@ export default function ClientDashboard() {
       return;
     }
 
-    // 1. Reservar a poltrona (status fica como reservada até o admin confirmar)
+    // 1. Pré-reservar a poltrona (status fica como 'pendente' até o admin confirmar)
     try {
       const passengerName = (user.user_metadata?.name as string) || user.email || "Cliente";
-      await mcpService.reserveSeat(selectedPublicTrip.id, selectedSeat, null, passengerName);
+      const phone = (user.user_metadata?.phone as string) || "";
+      await mcpService.prereserveSeat(selectedPublicTrip.id, selectedSeat, passengerName, phone);
     } catch (err: any) {
-      console.error("Erro ao reservar poltrona:", err);
+      console.error("Erro ao pré-reservar poltrona:", err);
       toast.error(err?.message || "Esta poltrona já foi reservada. Escolha outra.");
       // recarrega o mapa de poltronas
       try {
@@ -230,7 +231,7 @@ export default function ClientDashboard() {
         setTripSeats(seats.map((s: any) => ({
           number: s.seat_number,
           status: s.status === "free" ? "available" : "occupied",
-          occupantName: s.occupant_name || undefined,
+          occupantName: s.occupant_name || (s.status === "pending" ? "Pré-reservada" : undefined),
           floor: Number(s.seat_number) <= 44 ? "superior" : "inferior",
         })));
       } catch {}
@@ -243,8 +244,11 @@ export default function ClientDashboard() {
       trip_id: selectedPublicTrip.id,
       payment_method: bookingForm.paymentMethod,
       installments: parseInt(bookingForm.installments),
-      status: "pendente"
-    });
+      status: "pendente",
+      seat_number: parseInt(selectedSeat),
+      passenger_name: (user.user_metadata?.name as string) || user.email || "Cliente",
+      phone: (user.user_metadata?.phone as string) || null,
+    } as any);
 
     if (queryErr) {
       console.error("ERRO AO REGISTRAR PRÉ-RESERVA no banco:", queryErr);
