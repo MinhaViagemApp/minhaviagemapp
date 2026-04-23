@@ -151,12 +151,15 @@ export default function AdminPromotions() {
           <p className="text-muted-foreground">Ofertas exclusivas para seus clientes</p>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button className="gradient-accent"><Plus className="mr-2 h-4 w-4" /> Nova Promoção</Button>
-          </DialogTrigger>
+          <Button className="gradient-accent" onClick={openCreate}><Plus className="mr-2 h-4 w-4" /> Nova Promoção</Button>
           <DialogContent className="glass-strong">
             <DialogHeader><DialogTitle>Nova Promoção</DialogTitle></DialogHeader>
             <div className="space-y-4">
+              {draftSaved && (
+                <div className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                  Rascunho salvo automaticamente neste dispositivo.
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Título</Label>
                 <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="bg-secondary/50" />
@@ -192,10 +195,13 @@ export default function AdminPromotions() {
                 )}
               </div>
 
-              <Button onClick={handleCreate} disabled={isCreating} className="w-full gradient-accent">
-                {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                {isCreating ? "Criando..." : "Criar e Salvar"}
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Button variant="outline" onClick={saveDraftAndClose} disabled={isCreating}>Salvar rascunho</Button>
+                <Button onClick={handleCreate} disabled={isCreating} className="w-full gradient-accent">
+                  {isCreating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  {isCreating ? "Criando..." : "Finalizar Cadastro"}
+                </Button>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
