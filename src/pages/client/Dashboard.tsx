@@ -378,7 +378,7 @@ export default function ClientDashboard() {
                   <p className="text-sm text-muted-foreground line-clamp-2">{t.description}</p>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-black uppercase tracking-wider">
-                      <Calendar className="h-3 w-3 text-primary" />
+                      <Calendar className="h-3 w-3 text-foreground" />
                       Saída: {(() => { try { return new Date(t.start_date).toLocaleDateString("pt-BR"); } catch { return "—"; } })()}
                     </div>
                     <div className="flex items-center gap-4">
@@ -426,7 +426,7 @@ export default function ClientDashboard() {
                   <p className="text-sm text-muted-foreground line-clamp-2">{promo.description}</p>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-black uppercase tracking-wider">
-                      <Calendar className="h-3 w-3 text-accent" />
+                      <Calendar className="h-3 w-3 text-foreground" />
                       Até {(() => { try { return new Date(promo.expires_at).toLocaleDateString("pt-BR"); } catch { return "—"; } })()}
                     </div>
                     <Button variant="ghost" size="sm" className="text-xs text-accent font-black h-7 hover:bg-accent/10">
@@ -456,7 +456,7 @@ export default function ClientDashboard() {
           <div className="space-y-6 py-4">
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="h-4 w-4" />
+                <Calendar className="h-4 w-4 text-foreground" />
                 {selectedPublicTrip ? `${(() => { try { return new Date(selectedPublicTrip.start_date).toLocaleDateString("pt-BR"); } catch { return "-"; } })()} — ${(() => { try { return new Date(selectedPublicTrip.end_date).toLocaleDateString("pt-BR"); } catch { return "-"; } })()}` : ""}
               </div>
               <p className="text-sm text-muted-foreground leading-relaxed">{selectedPublicTrip?.description}</p>
