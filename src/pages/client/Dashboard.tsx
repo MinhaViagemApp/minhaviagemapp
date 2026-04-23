@@ -68,7 +68,7 @@ export default function ClientDashboard() {
         .order("start_date", { ascending: true })
         .limit(1);
         
-      let activeTrip = trips?.[0] || null;
+      let activeTrip: Trip | null = (trips?.[0] as Trip | undefined) || null;
 
       // se não houver viagem privada, verificar se há uma pré-reserva confirmada (viagem pública)
       if (!activeTrip) {
@@ -96,8 +96,8 @@ export default function ClientDashboard() {
         const { data: images } = await supabase.from("trip_images").select("image_url").eq("trip_id", activeTrip.id);
         setPhotos(images?.map(i => i.image_url) || []);
 
-        const { data: seat } = await supabase
-          .from("seats")
+        const { data: seat } = await (supabase as any)
+          .from("trip_seats")
           .select("seat_number")
           .eq("trip_id", activeTrip.id)
           .eq("user_id", user.id)
