@@ -377,17 +377,21 @@ export default function AdminDashboard() {
                              {clientInstallments.length > 0 ? (
                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                                   {clientInstallments.map(inst => (
-                                     <div key={inst.id} className="glass-strong p-3 rounded-lg flex flex-col justify-between border border-border/40 hover:border-primary/50 transition-all">
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 font-semibold">Parcela {inst.installment_number}</p>
-                                        <p className="font-bold mb-4 text-lg">R$ {Number(inst.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
-                                        <Button 
-                                          onClick={() => toggleInstallmentStatus(inst.id, inst.status)}
-                                          size="sm"
-                                          className={`w-full font-bold transition-all ${inst.status === 'pago' ? "bg-emerald-500/20 text-emerald-500 hover:bg-emerald-500 hover:text-white" : "bg-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white"}`}
-                                        >
-                                          {inst.status === 'pago' ? "Pago ✅" : "Pendente"}
-                                        </Button>
-                                     </div>
+                                      <div key={inst.id} className="glass-strong p-3 rounded-lg flex flex-col justify-between border border-border/40 hover:border-primary/50 transition-all">
+                                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2 font-semibold">Parcela {inst.installment_number}</p>
+                                         <p className="font-bold mb-3 text-lg">R$ {Number(inst.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+                                         <Select value={inst.status} onValueChange={(v) => setInstallmentStatus(inst.id, v as any)}>
+                                           <SelectTrigger className={`w-full font-bold text-xs h-9 ${inst.status === 'pago' ? 'bg-emerald-500/20 text-emerald-500 border-emerald-500/40' : inst.status === 'atrasado' ? 'bg-red-500/20 text-red-500 border-red-500/40' : inst.status === 'cancelado' ? 'bg-muted text-muted-foreground border-border' : 'bg-orange-500/20 text-orange-500 border-orange-500/40'}`}>
+                                             <SelectValue />
+                                           </SelectTrigger>
+                                           <SelectContent>
+                                             <SelectItem value="pendente">Pendente</SelectItem>
+                                             <SelectItem value="pago">Pago</SelectItem>
+                                             <SelectItem value="atrasado">Atrasado</SelectItem>
+                                             <SelectItem value="cancelado">Cancelado</SelectItem>
+                                           </SelectContent>
+                                         </Select>
+                                      </div>
                                   ))}
                                </div>
                              ) : (
