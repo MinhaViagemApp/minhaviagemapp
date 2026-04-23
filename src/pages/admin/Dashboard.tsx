@@ -148,7 +148,9 @@ export default function AdminDashboard() {
     if (!targetSeat) return;
 
     try {
-      await mcpService.reserveSeat(targetSeat.id, selectedClientForSeat || "manual-entry"); // Usando "manual-entry" como fallback se não houver ID
+      const selectedClient = clients.find(client => client.id === selectedClientForSeat);
+      const passengerName = selectedClient?.name || manualNameForSeat || "Passageiro";
+      await mcpService.reserveSeat(targetSeat.id, selectedClientForSeat || "manual-entry", passengerName);
       toast.success(`✅ Poltrona ${assignSeat} reservada com sucesso!`);
       setAssignSeat(null);
       setSelectedClientForSeat("");
