@@ -17,15 +17,21 @@ interface Promotion {
   preview_image?: string;
 }
 
+const PROMOTION_DRAFT_KEY = "minha-viagem-admin-promotion-draft";
+const emptyPromotionForm = { title: "", description: "", expires_at: "" };
+const hasPromotionDraftContent = (draft: typeof emptyPromotionForm) =>
+  Boolean(draft.title || draft.description || draft.expires_at);
+
 export default function AdminPromotions() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ title: "", description: "", expires_at: "" });
+  const [form, setForm] = useState(emptyPromotionForm);
   const [photoModal, setPhotoModal] = useState<Promotion | null>(null);
   const [photos, setPhotos] = useState<{ id: string; image_url: string }[]>([]);
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const fetch_ = async () => {
     const { data } = await supabase.from("promotions").select("*, promotion_images(image_url)").order("created_at", { ascending: false });
@@ -37,6 +43,27 @@ export default function AdminPromotions() {
   };
 
   useEffect(() => { fetch_(); }, []);
+
+  useEffect(() => {
+    if (!open || !hasPromotionDraftContent(form)) return;
+    localStorage.setItem(PROMOTION_DRAFT_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+  }, [form, open]);
+
+  const openCreate = () => {
+    const savedDraft = localStorage.getItem(PROMOTION_DRAFT_KEY);
+    setForm(savedDraft ? { ...emptyPromotionForm, ...JSON.parse(savedDraft) } : emptyPromotionForm);
+    setDraftSaved(Boolean(savedDraft));
+    setOpen(true);
+  };
+
+  const saveDraftAndClose = () => {
+    if (hasPromotionDraftContent(form)) {
+      localStorage.setItem(PROMOTION_DRAFT_KEY, JSON.stringify(form));
+      toast.success("Rascunho da promoção salvo.");
+    }
+    setOpen(false);
+  };
 
   const handleCreate = async () => {
     setIsCreating(true);
@@ -58,7 +85,9 @@ export default function AdminPromotions() {
 
     toast.success("Promoção criada com sucesso!");
     setOpen(false);
-    setForm({ title: "", description: "", expires_at: "" });
+    setForm(emptyPromotionForm);
+    localStorage.removeItem(PROMOTION_DRAFT_KEY);
+    setDraftSaved(false);
     setSelectedFiles([]);
     setIsCreating(false);
     fetch_();
