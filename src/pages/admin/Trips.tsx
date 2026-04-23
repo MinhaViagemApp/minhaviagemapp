@@ -40,6 +40,11 @@ const emptyForm = {
   credit_card_fee_percent: "0"
 };
 
+const TRIP_DRAFT_KEY = "minha-viagem-admin-trip-draft";
+
+const hasTripDraftContent = (draft: typeof emptyForm) =>
+  Boolean(draft.destination || draft.start_date || draft.end_date || draft.total_price || draft.description || draft.user_id);
+
 export default function AdminTrips() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -51,6 +56,7 @@ export default function AdminTrips() {
   const [uploading, setUploading] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const fetchTrips = async () => {
     const { data } = await supabase.from("trips").select("*, trip_images(image_url)").order("created_at", { ascending: false });
@@ -72,7 +78,20 @@ export default function AdminTrips() {
 
   useEffect(() => { fetchTrips(); fetchClients(); }, []);
 
-  const openCreate = () => { setEditTrip(null); setForm(emptyForm); setOpen(true); };
+  useEffect(() => {
+    if (!open || editTrip) return;
+    if (!hasTripDraftContent(form)) return;
+    localStorage.setItem(TRIP_DRAFT_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+  }, [form, open, editTrip]);
+
+  const openCreate = () => {
+    setEditTrip(null);
+    const savedDraft = localStorage.getItem(TRIP_DRAFT_KEY);
+    setForm(savedDraft ? { ...emptyForm, ...JSON.parse(savedDraft) } : emptyForm);
+    setDraftSaved(Boolean(savedDraft));
+    setOpen(true);
+  };
 
   const openEdit = (trip: Trip) => {
     setEditTrip(trip);
@@ -89,6 +108,14 @@ export default function AdminTrips() {
       credit_card_fee_percent: String(trip.credit_card_fee_percent || 0)
     });
     setOpen(true);
+  };
+
+  const saveDraftAndClose = () => {
+    if (hasTripDraftContent(form)) {
+      localStorage.setItem(TRIP_DRAFT_KEY, JSON.stringify(form));
+      toast.success("Rascunho da viagem salvo.");
+    }
+    setOpen(false);
   };
 
   const handleSave = async () => {
@@ -131,6 +158,8 @@ export default function AdminTrips() {
     }
     setIsCreating(false);
     setSelectedFiles([]);
+    localStorage.removeItem(TRIP_DRAFT_KEY);
+    setDraftSaved(false);
     setOpen(false);
     setForm(emptyForm);
     setEditTrip(null);
