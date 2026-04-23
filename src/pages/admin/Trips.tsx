@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2 } from "lucide-react";
+import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2, Trash2, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -24,6 +24,7 @@ interface Trip {
   is_public?: boolean;
   max_installments_card?: number;
   credit_card_fee_percent?: number;
+  status?: "scheduled" | "active" | "completed" | "cancelled" | "archived" | "draft";
 }
 
 interface Client { id: string; name: string }
@@ -59,8 +60,10 @@ export default function AdminTrips() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [draftSaved, setDraftSaved] = useState(false);
+  const [viewMode, setViewMode] = useState<"active" | "history">("active");
 
   const fetchTrips = async () => {
+    await supabase.rpc("refresh_trip_statuses" as any);
     const { data } = await supabase.from("trips").select("*, trip_images(image_url)").order("created_at", { ascending: false });
     const allTrips = data || [];
     const userIds = [...new Set(allTrips.map(t => t.user_id))];
@@ -70,7 +73,7 @@ export default function AdminTrips() {
       ...t, 
       client_name: profileMap.get(t.user_id) || "—",
       preview_image: (t as any).trip_images?.[0]?.image_url || null
-    })));
+    })) as Trip[]);
   };
 
   const fetchClients = async () => {
@@ -132,7 +135,9 @@ export default function AdminTrips() {
       company_id: companyId || null,
       is_public: form.is_public,
       max_installments_card: parseInt(form.max_installments_card) || 12,
-      credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0
+      credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0,
+      draft_status: "published",
+      status: new Date(form.end_date) < new Date() ? "completed" : new Date(form.start_date) <= new Date() ? "active" : "scheduled"
     };
 
     if (editTrip) {
@@ -219,6 +224,22 @@ export default function AdminTrips() {
   const removeSelectedFile = (idx: number) => {
     setSelectedFiles(prev => prev.filter((_, i) => i !== idx));
   };
+
+  const deleteTrip = async (trip: Trip) => {
+    if (!window.confirm(`Excluir a viagem para "${trip.destination}"? Esta ação não pode ser desfeita.`)) return;
+    await supabase.from("trip_images").delete().eq("trip_id", trip.id);
+    await supabase.from("trip_seats").delete().eq("trip_id", trip.id);
+    await (supabase as any).from("bus_seats").delete().eq("trip_id", trip.id);
+    const { error } = await supabase.from("trips").delete().eq("id", trip.id);
+    if (error) { toast.error("Erro ao excluir viagem: " + error.message); return; }
+    toast.success("Viagem excluída com sucesso.");
+    fetchTrips();
+  };
+
+  const visibleTrips = trips.filter(trip => {
+    const status = trip.status || (new Date(trip.end_date) < new Date() ? "completed" : "scheduled");
+    return viewMode === "history" ? ["completed", "cancelled", "archived"].includes(status) : ["scheduled", "active", "draft"].includes(status);
+  });
 
   return (
     <div className="space-y-6">
