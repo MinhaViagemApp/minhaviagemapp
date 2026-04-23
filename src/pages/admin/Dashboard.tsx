@@ -457,9 +457,14 @@ export default function AdminDashboard() {
                       <MessageCircle className="h-4 w-4 mr-1" /> Chamar
                     </Button>
                     {q.status === 'pendente' && (
-                      <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleQueryStatus(q.id, 'confirmada')}>
-                        Confirmar
-                      </Button>
+                      <>
+                        <Button size="sm" variant="outline" className="h-8 border-red-500/50 text-red-500 hover:bg-red-500/10" onClick={() => handleRejectQuery(q)}>
+                          Recusar
+                        </Button>
+                        <Button size="sm" className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white" onClick={() => handleConfirmQuery(q)}>
+                          Confirmar
+                        </Button>
+                      </>
                     )}
                   </TableCell>
                 </TableRow>
