@@ -90,7 +90,23 @@ export default function AdminDashboard() {
       const userIds = [...new Set(allTrips.map(t => t.user_id))];
       const { data: profiles } = await supabase.from("profiles").select("id, name").in("id", userIds);
       const pMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
-      const mapped = allTrips.map(t => ({ ...t, client_name: pMap.get(t.user_id) || "—" }));
+      // Busca ocupação de poltronas por viagem
+      const tripIds = allTrips.map(t => t.id);
+      const { data: allSeats } = tripIds.length
+        ? await supabase.from("bus_seats").select("trip_id, status").in("trip_id", tripIds)
+        : { data: [] as any[] };
+      const occMap = new Map<string, number>();
+      (allSeats || []).forEach((s: any) => {
+        if (s.status !== "livre" && s.status !== "free") {
+          occMap.set(s.trip_id, (occMap.get(s.trip_id) || 0) + 1);
+        }
+      });
+      const mapped = allTrips.map(t => ({
+        ...t,
+        client_name: pMap.get(t.user_id) || "—",
+        seats_occupied: occMap.get(t.id) || 0,
+        seats_total: t.total_seats || 44,
+      }));
       setTrips(type === "active" ? mapped.filter(t => new Date(t.end_date) >= new Date()) : mapped);
     } else if (type === "revenue") {
       const { data } = await supabase.from("payments").select("*, trips(destination)").order("paid_at", { ascending: false });
@@ -227,9 +243,11 @@ export default function AdminDashboard() {
 
   const handleConfirmQuery = async (query: any) => {
     try {
-      const email = (query.profiles?.email || "").trim().toLowerCase();
-      const name = query.profiles?.name || query.passenger_name || email;
-      const phone = query.profiles?.phone || query.phone || null;
+      // Identificação por NOME (preferência); email apenas como complemento
+      const name = (query.passenger_name || query.profiles?.name || "").trim();
+      if (!name) throw new Error("Pré-reserva sem nome do passageiro — peça ao cliente para refazer.");
+      const email = (query.profiles?.email || `${name.toLowerCase().replace(/\s+/g, ".")}@cliente.local`).trim().toLowerCase();
+      const phone = query.phone || query.profiles?.phone || null;
 
       // Pega company_id do admin logado
       const { data: { user } } = await supabase.auth.getUser();
@@ -238,11 +256,20 @@ export default function AdminDashboard() {
       const companyId = companyRow?.company_id;
       if (!companyId) throw new Error("Sua conta não tem empresa vinculada.");
 
-      // Busca ou cria cliente na tabela clients
-      let { data: existing } = await supabase.from("clients").select("id").eq("email", email).eq("company_id", companyId).maybeSingle();
+      // Busca cliente por NOME (case-insensitive) na empresa; se não existir, cria
+      let { data: existing } = await supabase
+        .from("clients")
+        .select("id")
+        .ilike("name", name)
+        .eq("company_id", companyId)
+        .maybeSingle();
       let clientId = existing?.id;
       if (!clientId) {
-        const { data: created, error: cErr } = await supabase.from("clients").insert({ name, email, phone, company_id: companyId }).select("id").single();
+        const { data: created, error: cErr } = await supabase
+          .from("clients")
+          .insert({ name, email, phone, company_id: companyId })
+          .select("id")
+          .single();
         if (cErr) throw cErr;
         clientId = created!.id;
       }
