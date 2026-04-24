@@ -51,35 +51,68 @@ serve(async (req) => {
       });
     }
 
-    const [{ data: bookings }, { data: queries }] = await Promise.all([
-      adminClient.from("bookings").select("id, trip_id, client_id").eq("client_id", userId),
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("name, email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const [{ data: queries }, { data: seatLinks }] = await Promise.all([
       adminClient.from("trip_queries").select("id, trip_id").eq("user_id", userId),
+      adminClient.from("trip_seats").select("trip_id").eq("user_id", userId),
     ]);
 
     const tripIds = Array.from(new Set([
-      ...(bookings || []).map((row) => row.trip_id),
       ...(queries || []).map((row) => row.trip_id),
+      ...(seatLinks || []).map((row) => row.trip_id),
     ]));
 
-    if (tripIds.length > 0) {
+    const { data: trips } = tripIds.length
+      ? await adminClient.from("trips").select("id, company_id").in("id", tripIds)
+      : { data: [] as any[] };
+
+    const companyIds = Array.from(new Set((trips || []).map((trip) => trip.company_id).filter(Boolean)));
+    const { data: matchedClients } = companyIds.length
+      ? await adminClient
+          .from("clients")
+          .select("id")
+          .in("company_id", companyIds)
+          .or(`name.ilike.${profile?.name || ""},email.eq.${profile?.email || ""}`)
+      : { data: [] as any[] };
+
+    const clientIds = (matchedClients || []).map((client) => client.id);
+
+    if (tripIds.length > 0 && clientIds.length > 0) {
       await adminClient
         .from("bus_seats")
         .update({ status: "livre", client_id: null, passenger_name: null, updated_at: new Date().toISOString() })
         .in("trip_id", tripIds)
-        .or(`client_id.eq.${userId},status.eq.pendente`);
+        .in("client_id", clientIds);
+    }
+
+    if (tripIds.length > 0 && profile?.name) {
+      await adminClient
+        .from("bus_seats")
+        .update({ status: "livre", client_id: null, passenger_name: null, updated_at: new Date().toISOString() })
+        .in("trip_id", tripIds)
+        .eq("status", "pendente")
+        .eq("passenger_name", profile.name);
     }
 
     await Promise.all([
       adminClient.from("notifications").delete().eq("user_id", userId),
-      adminClient.from("payments").delete().in("trip_id", tripIds.length ? tripIds : ["00000000-0000-0000-0000-000000000000"]),
       adminClient.from("installments").delete().eq("user_id", userId),
       adminClient.from("trip_queries").delete().eq("user_id", userId),
-      adminClient.from("bookings").delete().eq("client_id", userId),
-      adminClient.from("clients").delete().eq("id", userId),
+      adminClient.from("trip_seats").delete().eq("user_id", userId),
       adminClient.from("user_companies").delete().eq("user_id", userId),
       adminClient.from("user_roles").delete().eq("user_id", userId),
       adminClient.from("profiles").delete().eq("id", userId),
     ]);
+
+    if (clientIds.length > 0) {
+      await adminClient.from("bookings").delete().in("client_id", clientIds);
+      await adminClient.from("clients").delete().in("id", clientIds);
+    }
 
     const { error: deleteAuthError } = await adminClient.auth.admin.deleteUser(userId);
     if (deleteAuthError) {
