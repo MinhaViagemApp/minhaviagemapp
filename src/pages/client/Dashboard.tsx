@@ -315,7 +315,7 @@ export default function ClientDashboard() {
       </div>
 
       {trip && (
-        <div className="space-y-6">
+        <div id="minha-viagem-ativa" className="space-y-6 scroll-mt-24">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Plane className="h-5 w-5 text-primary" />
