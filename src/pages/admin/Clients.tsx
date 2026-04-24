@@ -316,7 +316,7 @@ export default function AdminClients() {
                     <Button variant="ghost" size="icon" onClick={() => openEdit(client)}>
                       <Pencil className="h-4 w-4 text-sky-400" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id, client.name || "Sem nome")}>
+                    <Button variant="ghost" size="icon" disabled={deletingClientId === client.id} onClick={() => handleDelete(client.id, client.name || "Sem nome")}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </TableCell>
@@ -389,7 +389,7 @@ export default function AdminClients() {
                                       <TableRow key={inst.id} className="border-white/5">
                                         <TableCell className="font-bold text-sm">{inst.installment_number}ª</TableCell>
                                         <TableCell className="text-xs">
-                                          <span className={new Date(inst.due_date) < new Date() && inst.status !== "pago" ? "text-rose-400 font-bold" : ""}>
+                                          <span className={getResolvedInstallmentStatus(inst) === "atrasado" ? "text-rose-400 font-bold" : ""}>
                                             {format(parseISO(inst.due_date), "dd/MM/yyyy")}
                                           </span>
                                         </TableCell>
@@ -398,7 +398,7 @@ export default function AdminClients() {
                                         <TableCell className="text-right">
                                           <div className="w-[140px] ml-auto">
                                             <Select
-                                              value={inst.status === "pago" ? "pago" : "pendente"}
+                                              value={getResolvedInstallmentStatus(inst)}
                                               onValueChange={(v) => updateInstallmentStatus(inst.id, v)}
                                               disabled={updatingInstId === inst.id}
                                             >
@@ -406,8 +406,10 @@ export default function AdminClients() {
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="pendente">Pendente / Em Prog.</SelectItem>
-                                                <SelectItem value="pago" className="text-emerald-400 font-bold">✓ Marcar Pago</SelectItem>
+                                                <SelectItem value="pendente">Pendente</SelectItem>
+                                                <SelectItem value="pago" className="text-emerald-400 font-bold">Pago</SelectItem>
+                                                <SelectItem value="atrasado">Atrasado</SelectItem>
+                                                <SelectItem value="cancelado">Cancelado</SelectItem>
                                               </SelectContent>
                                             </Select>
                                           </div>
