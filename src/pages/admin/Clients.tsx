@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,6 +48,7 @@ interface Client {
 }
 
 export default function AdminClients() {
+  const { user } = useAuth();
   const [clients, setClients] = useState<Client[]>([]);
   const [open, setOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -67,14 +69,35 @@ export default function AdminClients() {
 
     const userIds = profiles.map(p => p.id);
 
+    const { data: rolesData } = userIds.length
+      ? await supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("user_id", userIds)
+      : { data: [] as { user_id: string; role: string }[] };
+
+    const adminIds = new Set(
+      (rolesData || [])
+        .filter((role) => role.role === "admin")
+        .map((role) => role.user_id)
+    );
+
+    const visibleProfiles = profiles.filter((profile) => !adminIds.has(profile.id) && profile.id !== user?.id);
+    const visibleUserIds = visibleProfiles.map((profile) => profile.id);
+
+    if (visibleUserIds.length === 0) {
+      setClients([]);
+      return;
+    }
+
     const [{ data: installmentsData }, { data: queriesData }] = await Promise.all([
       supabase.from("installments")
         .select("id, trip_id, user_id, amount, status, due_date, installment_number, payment_method")
-        .in("user_id", userIds)
+        .in("user_id", visibleUserIds)
         .order("installment_number", { ascending: true }),
       supabase.from("trip_queries")
         .select("trip_id, user_id, payment_method, seat_number, status, created_at")
-        .in("user_id", userIds)
+        .in("user_id", visibleUserIds)
         .order("created_at", { ascending: false }),
     ]);
 
@@ -101,7 +124,7 @@ export default function AdminClients() {
       }
     });
 
-    const clientsBuilt: Client[] = profiles.map(p => {
+    const clientsBuilt: Client[] = visibleProfiles.map(p => {
       const userInstallments = (installmentsData || []).filter(i => i.user_id === p.id);
       const userQueries = (queriesData || []).filter(q => q.user_id === p.id);
       const userTripIds = Array.from(new Set([
@@ -147,7 +170,7 @@ export default function AdminClients() {
     setClients(clientsBuilt);
   };
 
-  useEffect(() => { fetchClients(); }, []);
+  useEffect(() => { fetchClients(); }, [user?.id]);
 
   const handleSave = async () => {
     if (editingClient) {
@@ -172,7 +195,7 @@ export default function AdminClients() {
     setDeletingClientId(null);
 
     if (error || data?.error) {
-      toast.error("Erro ao excluir: " + (error?.message || data?.error || "Falha desconhecida"));
+      toast.error(error?.message || data?.error || "Falha ao excluir o usuário.");
       await fetchClients();
       return;
     }

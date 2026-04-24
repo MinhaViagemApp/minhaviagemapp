@@ -58,6 +58,23 @@ serve(async (req) => {
     }
     const { userId } = body;
     if (!userId) return jsonResponse({ error: "userId é obrigatório." }, 400);
+    if (userId === authUser.user.id) {
+      return jsonResponse({ error: "Você não pode excluir seu próprio usuário por esta ação." }, 400);
+    }
+
+    const { data: targetRoleRows, error: targetRoleError } = await adminClient
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId);
+
+    if (targetRoleError) {
+      console.error("Target role check error:", targetRoleError.message);
+      return jsonResponse({ error: "Não foi possível validar o usuário selecionado." }, 500);
+    }
+
+    if ((targetRoleRows || []).some((row) => row.role === "admin")) {
+      return jsonResponse({ error: "Este fluxo exclui apenas clientes." }, 403);
+    }
 
     // Buscar profile (sem falhar se não existir)
     const { data: profile } = await adminClient
