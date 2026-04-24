@@ -15,7 +15,7 @@ import { NewSaleModal } from "@/components/admin/NewSaleModal";
 import { mcpService, Seat as MCPSeat } from "@/services/mcpService";
 
 interface ClientRow { id: string; name: string; email: string; phone: string | null; created_at: string; viagem_nome?: string }
-interface TripRow { id: string; destination: string; start_date: string; end_date: string; total_price: number; user_id: string; client_name?: string }
+interface TripRow { id: string; destination: string; start_date: string; end_date: string; total_price: number; user_id: string; client_name?: string; seats_occupied?: number; seats_total?: number }
 interface PaymentRow { id: string; amount_paid: number; paid_at: string; trip_id: string; destination?: string }
 
 export default function AdminDashboard() {
@@ -90,7 +90,23 @@ export default function AdminDashboard() {
       const userIds = [...new Set(allTrips.map(t => t.user_id))];
       const { data: profiles } = await supabase.from("profiles").select("id, name").in("id", userIds);
       const pMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
-      const mapped = allTrips.map(t => ({ ...t, client_name: pMap.get(t.user_id) || "—" }));
+      // Busca ocupação de poltronas por viagem
+      const tripIds = allTrips.map(t => t.id);
+      const { data: allSeats } = tripIds.length
+        ? await supabase.from("bus_seats").select("trip_id, status").in("trip_id", tripIds)
+        : { data: [] as any[] };
+      const occMap = new Map<string, number>();
+      (allSeats || []).forEach((s: any) => {
+        if (s.status !== "livre" && s.status !== "free") {
+          occMap.set(s.trip_id, (occMap.get(s.trip_id) || 0) + 1);
+        }
+      });
+      const mapped = allTrips.map(t => ({
+        ...t,
+        client_name: pMap.get(t.user_id) || "—",
+        seats_occupied: occMap.get(t.id) || 0,
+        seats_total: t.total_seats || 44,
+      }));
       setTrips(type === "active" ? mapped.filter(t => new Date(t.end_date) >= new Date()) : mapped);
     } else if (type === "revenue") {
       const { data } = await supabase.from("payments").select("*, trips(destination)").order("paid_at", { ascending: false });
@@ -227,9 +243,11 @@ export default function AdminDashboard() {
 
   const handleConfirmQuery = async (query: any) => {
     try {
-      const email = (query.profiles?.email || "").trim().toLowerCase();
-      const name = query.profiles?.name || query.passenger_name || email;
-      const phone = query.profiles?.phone || query.phone || null;
+      // Identificação por NOME (preferência); email apenas como complemento
+      const name = (query.passenger_name || query.profiles?.name || "").trim();
+      if (!name) throw new Error("Pré-reserva sem nome do passageiro — peça ao cliente para refazer.");
+      const email = (query.profiles?.email || `${name.toLowerCase().replace(/\s+/g, ".")}@cliente.local`).trim().toLowerCase();
+      const phone = query.phone || query.profiles?.phone || null;
 
       // Pega company_id do admin logado
       const { data: { user } } = await supabase.auth.getUser();
@@ -238,11 +256,20 @@ export default function AdminDashboard() {
       const companyId = companyRow?.company_id;
       if (!companyId) throw new Error("Sua conta não tem empresa vinculada.");
 
-      // Busca ou cria cliente na tabela clients
-      let { data: existing } = await supabase.from("clients").select("id").eq("email", email).eq("company_id", companyId).maybeSingle();
+      // Busca cliente por NOME (case-insensitive) na empresa; se não existir, cria
+      let { data: existing } = await supabase
+        .from("clients")
+        .select("id")
+        .ilike("name", name)
+        .eq("company_id", companyId)
+        .maybeSingle();
       let clientId = existing?.id;
       if (!clientId) {
-        const { data: created, error: cErr } = await supabase.from("clients").insert({ name, email, phone, company_id: companyId }).select("id").single();
+        const { data: created, error: cErr } = await supabase
+          .from("clients")
+          .insert({ name, email, phone, company_id: companyId })
+          .select("id")
+          .single();
         if (cErr) throw cErr;
         clientId = created!.id;
       }
@@ -477,23 +504,47 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
       <Dialog open={modal === "trips" || modal === "active"} onOpenChange={() => setModal(null)}>
-        <DialogContent className="glass-strong max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="glass-strong max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{modal === "active" ? "Viagens Ativas" : "Todas as Viagens"}</DialogTitle></DialogHeader>
           <Table>
             <TableHeader>
               <TableRow className="border-border/50">
-                <TableHead>Destino</TableHead><TableHead>Cliente</TableHead><TableHead>Período</TableHead><TableHead>Valor</TableHead>
+                <TableHead>Destino</TableHead>
+                <TableHead>Período</TableHead>
+                <TableHead>Valor</TableHead>
+                <TableHead className="min-w-[180px]">Ocupação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {trips.map(t => (
-                <TableRow key={t.id} className="border-border/50">
-                  <TableCell className="font-medium">{t.destination}</TableCell>
-                  <TableCell>{t.client_name}</TableCell>
-                  <TableCell>{new Date(t.start_date).toLocaleDateString("pt-BR")} - {new Date(t.end_date).toLocaleDateString("pt-BR")}</TableCell>
-                  <TableCell>R$ {Number(t.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
-                </TableRow>
-              ))}
+              {trips.map(t => {
+                const occ = t.seats_occupied || 0;
+                const tot = t.seats_total || 44;
+                const pct = tot > 0 ? Math.min(100, Math.round((occ / tot) * 100)) : 0;
+                const color = pct >= 100 ? "bg-emerald-500" : pct >= 70 ? "bg-orange-500" : "bg-primary";
+                return (
+                  <TableRow key={t.id} className="border-border/50">
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col">
+                        <span>{t.destination}</span>
+                        <span className="text-[10px] text-muted-foreground">{t.client_name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-xs">{new Date(t.start_date).toLocaleDateString("pt-BR")} - {new Date(t.end_date).toLocaleDateString("pt-BR")}</TableCell>
+                    <TableCell>R$ {Number(t.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</TableCell>
+                    <TableCell>
+                      <div className="space-y-1 min-w-[160px]">
+                        <div className="flex justify-between text-[10px] font-bold uppercase">
+                          <span className="text-muted-foreground">{occ}/{tot} poltronas</span>
+                          <span className={pct >= 100 ? "text-emerald-500" : pct >= 70 ? "text-orange-500" : "text-primary"}>{pct}%</span>
+                        </div>
+                        <div className="h-2 w-full bg-secondary/60 rounded-full overflow-hidden border border-border/40">
+                          <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${Math.max(2, pct)}%` }} />
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </DialogContent>

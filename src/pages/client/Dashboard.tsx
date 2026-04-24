@@ -284,6 +284,24 @@ export default function ClientDashboard() {
 
   return (
     <div className="space-y-8">
+      {/* Banner: Viagem Ativa */}
+      {trip && (
+        <button
+          onClick={() => document.getElementById("minha-viagem-ativa")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          className="w-full text-left glass-strong rounded-2xl p-4 sm:p-5 border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 hover:scale-[1.01] transition-all shadow-lg shadow-emerald-500/10 animate-fade-in flex items-center gap-4"
+        >
+          <div className="bg-emerald-500/20 p-3 rounded-xl border border-emerald-500/30 shrink-0">
+            <Plane className="h-6 w-6 text-emerald-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Você tem uma viagem ativa</p>
+            <p className="text-base sm:text-lg font-black truncate">{trip.destination}</p>
+            <p className="text-xs text-muted-foreground">Toque para ver todos os detalhes da sua viagem</p>
+          </div>
+          <ChevronRight className="h-5 w-5 text-emerald-400 shrink-0" />
+        </button>
+      )}
+
       {/* Hero Welcome Section */}
       <div className="text-left space-y-2 animate-fade-in translate-y-[-10px]">
         <h1 className="text-3xl md:text-4xl font-black gradient-primary-text leading-tight">
@@ -297,7 +315,7 @@ export default function ClientDashboard() {
       </div>
 
       {trip && (
-        <div className="space-y-6">
+        <div id="minha-viagem-ativa" className="space-y-6 scroll-mt-24">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold flex items-center gap-2">
               <Plane className="h-5 w-5 text-primary" />
