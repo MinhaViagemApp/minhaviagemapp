@@ -231,11 +231,20 @@ export default function AdminDashboard() {
   };
 
   const setInstallmentStatus = async (installmentId: string, newStatus: "pago" | "pendente" | "atrasado" | "cancelado") => {
+    const previous = clientInstallments.find((installment) => installment.id === installmentId);
     const { error } = await supabase.from("installments").update({ status: newStatus }).eq("id", installmentId);
     if (error) {
       toast.error("Erro ao atualizar parcela: " + error.message);
       return;
     }
+
+    if (newStatus === "pago" && previous?.status !== "pago") {
+      await supabase.from("payments").insert({
+        trip_id: previous.trip_id,
+        amount_paid: previous.amount,
+      });
+    }
+
     toast.success(`Parcela marcada como ${newStatus}!`);
     if (expandedClient) await toggleClientAccordion(expandedClient);
     fetchStats();

@@ -19,6 +19,7 @@ interface Installment {
   status: string;
   due_date: string;
   trip_id: string;
+  user_id?: string | null;
   destination?: string;
   client_name?: string;
 }
@@ -48,10 +49,9 @@ export default function AdminPayments() {
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
 
   const fetchData = async () => {
-    // Busca Parcela
     const { data: instData } = await supabase
       .from("installments")
-      .select("*, trips(destination, user_id), profiles(name)")
+      .select("id, installment_number, amount, status, due_date, trip_id, user_id, trips(destination)")
       .order("due_date", { ascending: true });
 
     // Busca Despesas
@@ -67,6 +67,12 @@ export default function AdminPayments() {
       .order("start_date", { ascending: false });
 
     if (tripData) setTrips(tripData);
+
+    const userIds = Array.from(new Set((instData || []).map((i: any) => i.user_id).filter(Boolean)));
+    const { data: profiles } = userIds.length
+      ? await supabase.from("profiles").select("id, name").in("id", userIds)
+      : { data: [] as any[] };
+    const profileMap = new Map((profiles || []).map((profile: any) => [profile.id, profile.name]));
     
     if (instData) {
       setInstallments(instData.map((i: any) => ({
@@ -76,8 +82,9 @@ export default function AdminPayments() {
         status: i.status,
         due_date: i.due_date,
         trip_id: i.trip_id,
+        user_id: i.user_id,
         destination: i.trips?.destination,
-        client_name: i.profiles?.name || "—",
+        client_name: profileMap.get(i.user_id) || "—",
       })));
     }
 
@@ -97,6 +104,14 @@ export default function AdminPayments() {
   };
 
   const fmt = (val: number) => `R$ ${val.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
+
+  const getResolvedStatus = (inst: Installment) => {
+    if (["pago", "atrasado", "cancelado"].includes(inst.status)) return inst.status;
+    const now = new Date();
+    const dueDate = parseISO(inst.due_date);
+    if (dueDate < now && dueDate.toDateString() !== now.toDateString()) return "atrasado";
+    return "pendente";
+  };
 
   // Filtragem
   const filteredInstallments = useMemo(() => {
@@ -134,8 +149,8 @@ export default function AdminPayments() {
   }, [expenses, tripFilter, monthFilter]);
 
   // Cálculos de Métricas
-  const totalRevenue = filteredInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
-  const totalPending = filteredInstallments.filter(i => i.status !== "pago").reduce((s, i) => s + Number(i.amount), 0);
+  const totalRevenue = filteredInstallments.filter(i => getResolvedStatus(i) === "pago").reduce((s, i) => s + Number(i.amount), 0);
+  const totalPending = filteredInstallments.filter(i => ["pendente", "atrasado"].includes(getResolvedStatus(i))).reduce((s, i) => s + Number(i.amount), 0);
   const totalExpenses = filteredExpenses.reduce((s, i) => s + Number(i.amount), 0);
   const netProfit = totalRevenue - totalExpenses;
 
@@ -145,7 +160,7 @@ export default function AdminPayments() {
     
     // Processa Entradas (apenas parcelas pagas)
     filteredInstallments.forEach(inst => {
-      if (inst.status !== "pago") return;
+        if (getResolvedStatus(inst) !== "pago") return;
       const m = inst.due_date.substring(0, 7); // yyyy-MM
       if (!dataByMonth[m]) dataByMonth[m] = { month: m, Entradas: 0, Saídas: 0 };
       dataByMonth[m].Entradas += Number(inst.amount);
@@ -317,12 +332,21 @@ export default function AdminPayments() {
                 <TableCell>{format(parseISO(inst.due_date), "dd/MM/yyyy")}</TableCell>
                 <TableCell className="font-bold">{fmt(Number(inst.amount))}</TableCell>
                 <TableCell>
-                  <Badge variant={inst.status === "pago" ? "default" : "secondary"} className={inst.status === "pago" ? "bg-emerald-500/20 text-emerald-400 border-0" : "bg-amber-500/20 text-amber-400 border-0"}>
-                    {inst.status === "pago" ? "✓ Pago" : "⏳ Pendente"}
+                  <Badge
+                    variant="secondary"
+                    className={getResolvedStatus(inst) === "pago"
+                      ? "bg-emerald-500/20 text-emerald-400 border-0"
+                      : getResolvedStatus(inst) === "atrasado"
+                        ? "bg-rose-500/20 text-rose-400 border-0"
+                        : getResolvedStatus(inst) === "cancelado"
+                          ? "bg-muted text-muted-foreground border-0"
+                          : "bg-amber-500/20 text-amber-400 border-0"}
+                  >
+                    {getResolvedStatus(inst) === "pago" ? "✓ Pago" : getResolvedStatus(inst) === "atrasado" ? "Atrasado" : getResolvedStatus(inst) === "cancelado" ? "Cancelado" : "Pendente"}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right">
-                  {inst.status !== "pago" && (
+                  {getResolvedStatus(inst) !== "pago" && getResolvedStatus(inst) !== "cancelado" && (
                     <Button variant="ghost" size="sm" onClick={() => markAsPaid(inst)} className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10">
                       <Check className="h-4 w-4 mr-1" /> Receber
                     </Button>

@@ -20,6 +20,8 @@ interface Installment {
   status: string;
   due_date: string;
   trip_id: string;
+  user_id?: string | null;
+  payment_method?: string | null;
 }
 
 interface TripInfo {
@@ -54,6 +56,7 @@ export default function AdminClients() {
   const [saleModalOpen, setSaleModalOpen] = useState(false);
   const [expandedClientId, setExpandedClientId] = useState<string | null>(null);
   const [updatingInstId, setUpdatingInstId] = useState<string | null>(null);
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
 
   const fetchClients = async () => {
     const { data: profiles } = await supabase
@@ -64,52 +67,69 @@ export default function AdminClients() {
 
     const userIds = profiles.map(p => p.id);
 
-    // Busca viagens com assentos e queries de pagamento
-    const { data: tripsData } = await supabase
-      .from("trips")
-      .select("id, user_id, destination, start_date")
-      .in("user_id", userIds);
-
-    const tripIds = tripsData?.map(t => t.id) || [];
-
-    const [{ data: installmentsData }, { data: seatsData }, { data: queriesData }] = await Promise.all([
+    const [{ data: installmentsData }, { data: queriesData }] = await Promise.all([
       supabase.from("installments")
-        .select("id, trip_id, amount, status, due_date, installment_number")
-        .in("trip_id", tripIds)
+        .select("id, trip_id, user_id, amount, status, due_date, installment_number, payment_method")
+        .in("user_id", userIds)
         .order("installment_number", { ascending: true }),
-      supabase.from("trip_seats")
-        .select("trip_id, seat_number, user_id")
-        .in("trip_id", tripIds),
       supabase.from("trip_queries")
-        .select("trip_id, payment_method, installments")
-        .in("trip_id", tripIds),
+        .select("trip_id, user_id, payment_method, seat_number, status, created_at")
+        .in("user_id", userIds)
+        .order("created_at", { ascending: false }),
     ]);
 
+    const tripIds = Array.from(new Set([
+      ...(installmentsData || []).map(i => i.trip_id),
+      ...(queriesData || []).map(q => q.trip_id),
+    ]));
+
+    const { data: tripsData } = tripIds.length
+      ? await supabase
+          .from("trips")
+          .select("id, destination, start_date")
+          .in("id", tripIds)
+      : { data: [] as any[] };
+
     const now = new Date();
+    const tripMap = new Map((tripsData || []).map(t => [t.id, t]));
+    const latestQueryMap = new Map<string, any>();
+
+    (queriesData || []).forEach((query: any) => {
+      const key = `${query.user_id}-${query.trip_id}`;
+      if (!latestQueryMap.has(key)) {
+        latestQueryMap.set(key, query);
+      }
+    });
 
     const clientsBuilt: Client[] = profiles.map(p => {
-      const userTrips = (tripsData || []).filter(t => t.user_id === p.id);
-      const userTripIds = userTrips.map(t => t.id);
+      const userInstallments = (installmentsData || []).filter(i => i.user_id === p.id);
+      const userQueries = (queriesData || []).filter(q => q.user_id === p.id);
+      const userTripIds = Array.from(new Set([
+        ...userInstallments.map(i => i.trip_id),
+        ...userQueries.map(q => q.trip_id),
+      ]));
 
-      const allInstallments = (installmentsData || []).filter(i => userTripIds.includes(i.trip_id));
-      const totalDue = allInstallments.reduce((s, i) => s + Number(i.amount), 0);
-      const totalPaid = allInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
-      const hasLatePayment = allInstallments.some(i => {
-        if (i.status === "pago") return false;
+      const activeInstallments = userInstallments.filter(i => i.status !== "cancelado");
+      const totalDue = activeInstallments.reduce((s, i) => s + Number(i.amount), 0);
+      const totalPaid = activeInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
+      const hasLatePayment = activeInstallments.some(i => {
+        if (i.status === "pago" || i.status === "cancelado") return false;
+        if (i.status === "atrasado") return true;
         const d = new Date(i.due_date);
         return d < now && d.toDateString() !== now.toDateString();
       });
 
-      const trips: TripInfo[] = userTrips.map(t => {
-        const seat = (seatsData || []).find(s => s.trip_id === t.id && s.user_id === p.id);
-        const query = (queriesData || []).find(q => q.trip_id === t.id);
-        const insts = (installmentsData || []).filter(i => i.trip_id === t.id);
+      const trips: TripInfo[] = userTripIds.map(tripId => {
+        const trip = tripMap.get(tripId);
+        const query = latestQueryMap.get(`${p.id}-${tripId}`);
+        const insts = userInstallments.filter(i => i.trip_id === tripId);
+
         return {
-          id: t.id,
-          destination: t.destination,
-          start_date: t.start_date,
-          seat_number: seat?.seat_number || null,
-          payment_method: query?.payment_method || null,
+          id: tripId,
+          destination: trip?.destination || "Viagem sem nome",
+          start_date: trip?.start_date || "",
+          seat_number: query?.seat_number ? String(query.seat_number).padStart(2, "0") : null,
+          payment_method: insts[0]?.payment_method || query?.payment_method || null,
           installments: insts,
         };
       });
@@ -119,7 +139,7 @@ export default function AdminClients() {
         totalDue,
         totalPaid,
         hasLatePayment,
-        tripDestinations: userTrips.map(t => t.destination),
+        tripDestinations: trips.map(t => t.destination),
         trips,
       };
     });
@@ -143,18 +163,23 @@ export default function AdminClients() {
 
   const handleDelete = async (id: string, clientName: string) => {
     if (!window.confirm(`Tem certeza que deseja excluir o cliente "${clientName}"?`)) return;
-    setClients(prev => prev.filter(c => c.id !== id));
-    await supabase.from("installments").delete().in("trip_id", 
-      clients.find(c => c.id === id)?.trips.map(t => t.id) || []
-    );
-    await supabase.from("trip_seats").delete().eq("user_id", id);
-    const { error } = await supabase.from("profiles").delete().eq("id", id);
-    if (error) {
-      toast.error("Erro ao excluir: " + error.message);
-      fetchClients();
-    } else {
-      toast.success(`Cliente "${clientName}" excluído!`);
+    setDeletingClientId(id);
+
+    const { data, error } = await supabase.functions.invoke("delete-user-account", {
+      body: { userId: id },
+    });
+
+    setDeletingClientId(null);
+
+    if (error || data?.error) {
+      toast.error("Erro ao excluir: " + (error?.message || data?.error || "Falha desconhecida"));
+      await fetchClients();
+      return;
     }
+
+    setClients(prev => prev.filter(c => c.id !== id));
+    if (expandedClientId === id) setExpandedClientId(null);
+    toast.success(`Cliente "${clientName}" excluído permanentemente!`);
   };
 
   const openEdit = (client: Client) => {
@@ -177,29 +202,48 @@ export default function AdminClients() {
 
   const updateInstallmentStatus = async (instId: string, newStatus: string) => {
     setUpdatingInstId(instId);
+    const targetInstallment = clients
+      .flatMap(client => client.trips)
+      .flatMap(trip => trip.installments)
+      .find(installment => installment.id === instId);
+
     const { error } = await supabase.from("installments").update({ status: newStatus }).eq("id", instId);
     if (error) {
       toast.error("Erro ao atualizar: " + error.message);
     } else {
-      toast.success(newStatus === "pago" ? "✓ Parcela marcada como Paga!" : "Status atualizado.");
+      if (newStatus === "pago" && targetInstallment?.status !== "pago") {
+        await supabase.from("payments").insert({
+          trip_id: targetInstallment.trip_id,
+          amount_paid: targetInstallment.amount,
+        });
+      }
+      toast.success(newStatus === "pago" ? "✓ Parcela marcada como paga!" : "Status atualizado.");
       fetchClients();
     }
     setUpdatingInstId(null);
+  };
+
+  const getResolvedInstallmentStatus = (inst: Installment) => {
+    if (["pago", "atrasado", "cancelado"].includes(inst.status)) return inst.status;
+    const now = new Date();
+    const dueDate = new Date(inst.due_date);
+    if (dueDate < now && dueDate.toDateString() !== now.toDateString()) return "atrasado";
+    return "pendente";
   };
 
   const getStatusBadge = (client: Client) => {
     if (client.totalDue === 0) return <Badge className="bg-amber-500/20 text-amber-500 border-0">Pendente</Badge>;
     if (client.totalPaid >= client.totalDue) return <Badge className="bg-emerald-500/20 text-emerald-400 border-0"><Check className="h-3 w-3 mr-1" />Pago</Badge>;
     if (client.hasLatePayment) return <Badge className="bg-rose-500/20 text-rose-400 border-0"><AlertCircle className="h-3 w-3 mr-1" />Atrasado</Badge>;
-    return <Badge className="bg-sky-500/20 text-sky-400 border-0"><Clock className="h-3 w-3 mr-1" />Em Progresso</Badge>;
+    return <Badge className="bg-sky-500/20 text-sky-400 border-0"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
   };
 
   const getInstBadge = (inst: Installment) => {
-    const now = new Date();
-    if (inst.status === "pago") return <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px]">Pago</Badge>;
-    const d = new Date(inst.due_date);
-    if (d < now && d.toDateString() !== now.toDateString()) return <Badge className="bg-rose-500/20 text-rose-400 border-0 text-[10px]">Atrasado</Badge>;
-    return <Badge className="bg-sky-500/20 text-sky-400 border-0 text-[10px]">Em Progresso</Badge>;
+    const status = getResolvedInstallmentStatus(inst);
+    if (status === "pago") return <Badge className="bg-emerald-500/20 text-emerald-400 border-0 text-[10px]">Pago</Badge>;
+    if (status === "cancelado") return <Badge className="bg-muted text-muted-foreground border-0 text-[10px]">Cancelado</Badge>;
+    if (status === "atrasado") return <Badge className="bg-rose-500/20 text-rose-400 border-0 text-[10px]">Atrasado</Badge>;
+    return <Badge className="bg-sky-500/20 text-sky-400 border-0 text-[10px]">Pendente</Badge>;
   };
 
   const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
@@ -283,7 +327,7 @@ export default function AdminClients() {
                     <Button variant="ghost" size="icon" onClick={() => openEdit(client)}>
                       <Pencil className="h-4 w-4 text-sky-400" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id, client.name || "Sem nome")}>
+                    <Button variant="ghost" size="icon" disabled={deletingClientId === client.id} onClick={() => handleDelete(client.id, client.name || "Sem nome")}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   </TableCell>
@@ -356,7 +400,7 @@ export default function AdminClients() {
                                       <TableRow key={inst.id} className="border-white/5">
                                         <TableCell className="font-bold text-sm">{inst.installment_number}ª</TableCell>
                                         <TableCell className="text-xs">
-                                          <span className={new Date(inst.due_date) < new Date() && inst.status !== "pago" ? "text-rose-400 font-bold" : ""}>
+                                          <span className={getResolvedInstallmentStatus(inst) === "atrasado" ? "text-rose-400 font-bold" : ""}>
                                             {format(parseISO(inst.due_date), "dd/MM/yyyy")}
                                           </span>
                                         </TableCell>
@@ -365,7 +409,7 @@ export default function AdminClients() {
                                         <TableCell className="text-right">
                                           <div className="w-[140px] ml-auto">
                                             <Select
-                                              value={inst.status === "pago" ? "pago" : "pendente"}
+                                              value={getResolvedInstallmentStatus(inst)}
                                               onValueChange={(v) => updateInstallmentStatus(inst.id, v)}
                                               disabled={updatingInstId === inst.id}
                                             >
@@ -373,8 +417,10 @@ export default function AdminClients() {
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
-                                                <SelectItem value="pendente">Pendente / Em Prog.</SelectItem>
-                                                <SelectItem value="pago" className="text-emerald-400 font-bold">✓ Marcar Pago</SelectItem>
+                                                <SelectItem value="pendente">Pendente</SelectItem>
+                                                <SelectItem value="pago" className="text-emerald-400 font-bold">Pago</SelectItem>
+                                                <SelectItem value="atrasado">Atrasado</SelectItem>
+                                                <SelectItem value="cancelado">Cancelado</SelectItem>
                                               </SelectContent>
                                             </Select>
                                           </div>
