@@ -202,10 +202,21 @@ export default function AdminClients() {
 
   const updateInstallmentStatus = async (instId: string, newStatus: string) => {
     setUpdatingInstId(instId);
+    const targetInstallment = clients
+      .flatMap(client => client.trips)
+      .flatMap(trip => trip.installments)
+      .find(installment => installment.id === instId);
+
     const { error } = await supabase.from("installments").update({ status: newStatus }).eq("id", instId);
     if (error) {
       toast.error("Erro ao atualizar: " + error.message);
     } else {
+      if (newStatus === "pago" && targetInstallment?.status !== "pago") {
+        await supabase.from("payments").insert({
+          trip_id: targetInstallment.trip_id,
+          amount_paid: targetInstallment.amount,
+        });
+      }
       toast.success(newStatus === "pago" ? "✓ Parcela marcada como paga!" : "Status atualizado.");
       fetchClients();
     }
