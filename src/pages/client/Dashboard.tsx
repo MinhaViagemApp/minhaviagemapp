@@ -61,6 +61,9 @@ export default function ClientDashboard() {
     paymentMethod: "pix",
     installments: "1"
   });
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<ValidatedCoupon | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [tripSeats, setTripSeats] = useState<any[]>([]);
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
   const [loadingSeats, setLoadingSeats] = useState(false);
