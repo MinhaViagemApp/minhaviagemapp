@@ -32,6 +32,7 @@ const adminItems = [
   { title: "Viagens", url: "/admin/trips", icon: Plane },
   { title: "Pagamentos", url: "/admin/payments", icon: CreditCard },
   { title: "Promoções", url: "/admin/promotions", icon: Tag },
+  { title: "Cupons", url: "/admin/coupons", icon: Tag },
   { title: "Perfil Empresa", url: "/admin/profile", icon: Building2 },
 ];
 
