@@ -230,7 +230,7 @@ export default function AdminClients() {
       .flatMap(trip => trip.installments)
       .find(installment => installment.id === instId);
 
-    const { error } = await supabase.from("installments").update({ status: newStatus }).eq("id", instId);
+    const { error } = await (supabase as any).rpc("set_installment_status", { _installment_id: instId, _status: newStatus });
     if (error) {
       toast.error("Erro ao atualizar: " + error.message);
     } else {

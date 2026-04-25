@@ -178,6 +178,50 @@ export type Database = {
         }
         Relationships: []
       }
+      coupons: {
+        Row: {
+          active: boolean
+          cash_only: boolean
+          code: string
+          company_id: string
+          created_at: string
+          discount_percent: number
+          expires_at: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          cash_only?: boolean
+          code: string
+          company_id: string
+          created_at?: string
+          discount_percent: number
+          expires_at?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          cash_only?: boolean
+          code?: string
+          company_id?: string
+          created_at?: string
+          discount_percent?: number
+          expires_at?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupons_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
@@ -460,7 +504,9 @@ export type Database = {
       }
       trip_queries: {
         Row: {
+          coupon_code: string | null
           created_at: string
+          discount_percent: number
           id: string
           installments: number
           passenger_name: string | null
@@ -473,7 +519,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          coupon_code?: string | null
           created_at?: string
+          discount_percent?: number
           id?: string
           installments?: number
           passenger_name?: string | null
@@ -486,7 +534,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          coupon_code?: string | null
           created_at?: string
+          discount_percent?: number
           id?: string
           installments?: number
           passenger_name?: string | null
@@ -529,6 +579,7 @@ export type Database = {
       }
       trips: {
         Row: {
+          boleto_fee_percent: number
           company_id: string | null
           created_at: string
           credit_card_fee_percent: number
@@ -548,6 +599,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          boleto_fee_percent?: number
           company_id?: string | null
           created_at?: string
           credit_card_fee_percent?: number
@@ -567,6 +619,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          boleto_fee_percent?: number
           company_id?: string | null
           created_at?: string
           credit_card_fee_percent?: number
@@ -712,6 +765,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_installment_status: {
+        Args: { _installment_id: string; _status: string }
+        Returns: undefined
       }
     }
     Enums: {

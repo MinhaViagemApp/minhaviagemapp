@@ -12,6 +12,7 @@ import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
 import { celebrateApproval } from "@/lib/celebrate";
+import { computePrice, validateCoupon, type ValidatedCoupon } from "@/lib/pricing";
 import { 
   MessageCircle, 
   Info, 
@@ -39,6 +40,8 @@ interface Trip {
   created_at: string;
   is_public?: boolean;
   max_installments_card?: number;
+  credit_card_fee_percent?: number;
+  boleto_fee_percent?: number;
 }
 
 export default function ClientDashboard() {
@@ -58,6 +61,9 @@ export default function ClientDashboard() {
     paymentMethod: "pix",
     installments: "1"
   });
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<ValidatedCoupon | null>(null);
+  const [couponLoading, setCouponLoading] = useState(false);
   const [tripSeats, setTripSeats] = useState<any[]>([]);
   const [selectedSeat, setSelectedSeat] = useState<string | null>(null);
   const [loadingSeats, setLoadingSeats] = useState(false);
@@ -287,6 +293,8 @@ export default function ClientDashboard() {
       seat_number: parseInt(selectedSeat),
       passenger_name: (user.user_metadata?.name as string) || user.email || "Cliente",
       phone: (user.user_metadata?.phone as string) || null,
+      coupon_code: coupon?.code || null,
+      discount_percent: coupon?.discount_percent || 0,
     } as any);
 
     if (queryErr) {
@@ -561,7 +569,7 @@ export default function ClientDashboard() {
         </div>
       </div>
 
-      <Dialog open={!!selectedPublicTrip} onOpenChange={() => setSelectedPublicTrip(null)}>
+      <Dialog open={!!selectedPublicTrip} onOpenChange={() => { setSelectedPublicTrip(null); setCoupon(null); setCouponInput(""); }}>
         <DialogContent className="glass-strong max-w-3xl w-[95vw] max-h-[92vh] overflow-y-auto border-primary/20 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-2xl font-black">
@@ -625,6 +633,88 @@ export default function ClientDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Cupom + Resumo do valor */}
+            {selectedPublicTrip && (() => {
+              const breakdown = computePrice({
+                base: Number(selectedPublicTrip.total_price),
+                paymentMethod: bookingForm.paymentMethod,
+                installments: parseInt(bookingForm.installments) || 1,
+                creditCardFeePercent: Number(selectedPublicTrip.credit_card_fee_percent) || 0,
+                boletoFeePercent: Number((selectedPublicTrip as any).boleto_fee_percent) || 0,
+                couponPercent: coupon?.discount_percent || 0,
+                couponCashOnly: coupon?.cash_only ?? true,
+              });
+              return (
+                <div className="p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-4">
+                  <h4 className="text-xs font-black uppercase text-muted-foreground tracking-[0.2em]">Cupom de desconto</h4>
+                  {coupon ? (
+                    <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-emerald-400" />
+                        <span className="font-mono font-bold">{coupon.code}</span>
+                        <Badge variant="outline" className="border-emerald-500 text-emerald-400">
+                          -{coupon.discount_percent}%
+                        </Badge>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => { setCoupon(null); setCouponInput(""); }}>
+                        Remover
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex gap-2">
+                      <input
+                        value={couponInput}
+                        onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                        placeholder="Adicione seu cupom aqui"
+                        className="flex-1 bg-background/50 border border-primary/10 rounded-xl px-4 py-2.5 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <Button
+                        variant="outline"
+                        disabled={couponLoading || !couponInput}
+                        onClick={async () => {
+                          setCouponLoading(true);
+                          const { coupon: c, error } = await validateCoupon(
+                            couponInput,
+                            bookingForm.paymentMethod,
+                            parseInt(bookingForm.installments) || 1
+                          );
+                          setCouponLoading(false);
+                          if (error || !c) { toast.error(error || "Cupom inválido."); return; }
+                          setCoupon(c);
+                          toast.success(`Cupom ${c.code} aplicado!`);
+                        }}
+                      >
+                        {couponLoading ? "..." : "Aplicar"}
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="border-t border-border/40 pt-3 space-y-1.5 text-sm">
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>Valor base</span>
+                      <span>R$ {breakdown.base.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {breakdown.feeAmount > 0 && (
+                      <div className="flex justify-between text-yellow-400">
+                        <span>+ Juros ({breakdown.feePercent}%)</span>
+                        <span>R$ {breakdown.feeAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {breakdown.discountAmount > 0 && (
+                      <div className="flex justify-between text-emerald-400">
+                        <span>- Cupom ({breakdown.discountPercent}%)</span>
+                        <span>- R$ {breakdown.discountAmount.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-black text-base pt-1 border-t border-border/40">
+                      <span>Total</span>
+                      <span className="text-primary">R$ {breakdown.total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* 2) Seleção de poltrona — DEPOIS das parcelas */}
             <div className="p-4 sm:p-5 bg-secondary/30 rounded-2xl border border-primary/10 shadow-inner space-y-4">

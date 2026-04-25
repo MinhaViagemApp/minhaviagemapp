@@ -24,6 +24,7 @@ interface Trip {
   is_public?: boolean;
   max_installments_card?: number;
   credit_card_fee_percent?: number;
+  boleto_fee_percent?: number;
   status?: "scheduled" | "active" | "completed" | "cancelled" | "archived" | "draft";
 }
 
@@ -39,7 +40,8 @@ const emptyForm = {
   installments: "1",
   is_public: true,
   max_installments_card: "12",
-  credit_card_fee_percent: "0"
+  credit_card_fee_percent: "0",
+  boleto_fee_percent: "0"
 };
 
 const TRIP_DRAFT_KEY = "minha-viagem-admin-trip-draft";
@@ -110,7 +112,8 @@ export default function AdminTrips() {
       installments: "1",
       is_public: trip.is_public || false,
       max_installments_card: String(trip.max_installments_card || 12),
-      credit_card_fee_percent: String(trip.credit_card_fee_percent || 0)
+      credit_card_fee_percent: String(trip.credit_card_fee_percent || 0),
+      boleto_fee_percent: String((trip as any).boleto_fee_percent || 0)
     });
     setOpen(true);
   };
@@ -144,6 +147,7 @@ export default function AdminTrips() {
       is_public: form.is_public,
       max_installments_card: parseInt(form.max_installments_card) || 12,
       credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0,
+      boleto_fee_percent: parseFloat(form.boleto_fee_percent) || 0,
       draft_status: "published",
       status: new Date(form.end_date) < new Date() ? "completed" : new Date(form.start_date) <= new Date() ? "active" : "scheduled"
     };
@@ -341,6 +345,31 @@ export default function AdminTrips() {
                 )}
               </div>
               <p className="text-xs text-muted-foreground">Percentual acrescido ao parcelamento no cartão para cobrir taxas da maquininha.</p>
+            </div>
+            {/* Juros Boleto */}
+            <div className="bg-secondary/30 p-3 rounded-lg border border-blue-500/20 space-y-2">
+              <Label className="flex items-center gap-2">
+                <span>🧾 Juros do Boleto (%)</span>
+              </Label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min="0"
+                  max="50"
+                  step="0.1"
+                  value={form.boleto_fee_percent}
+                  onChange={(e) => setForm({ ...form, boleto_fee_percent: e.target.value })}
+                  className="bg-secondary/50 w-28"
+                  placeholder="Ex: 3.0"
+                />
+                <span className="text-muted-foreground text-sm">%</span>
+                {parseFloat(form.boleto_fee_percent) > 0 && form.total_price && (
+                  <span className="text-blue-400 text-xs bg-blue-500/10 px-2 py-1 rounded border border-blue-500/30">
+                    Valor no boleto: R$ {(parseFloat(form.total_price) * (1 + parseFloat(form.boleto_fee_percent) / 100)).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">Acréscimo aplicado quando o cliente escolher pagar via boleto.</p>
             </div>
             <div className="space-y-2">
               <Label>Descrição</Label>
