@@ -147,6 +147,7 @@ export default function AdminTrips() {
       is_public: form.is_public,
       max_installments_card: parseInt(form.max_installments_card) || 12,
       credit_card_fee_percent: parseFloat(form.credit_card_fee_percent) || 0,
+      boleto_fee_percent: parseFloat(form.boleto_fee_percent) || 0,
       draft_status: "published",
       status: new Date(form.end_date) < new Date() ? "completed" : new Date(form.start_date) <= new Date() ? "active" : "scheduled"
     };
