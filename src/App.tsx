@@ -48,6 +48,7 @@ const App = () => (
 
             <Route path="/client" element={<AppLayout requiredRole="cliente" />}>
               <Route index element={<ClientDashboard />} />
+              <Route path="my-trips" element={<ClientMyTrips />} />
               <Route path="payments" element={<ClientPayments />} />
               <Route path="promotions" element={<ClientPromotions />} />
               <Route path="notifications" element={<ClientNotifications />} />
