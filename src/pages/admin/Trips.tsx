@@ -24,6 +24,7 @@ interface Trip {
   is_public?: boolean;
   max_installments_card?: number;
   credit_card_fee_percent?: number;
+  boleto_fee_percent?: number;
   status?: "scheduled" | "active" | "completed" | "cancelled" | "archived" | "draft";
 }
 
@@ -39,7 +40,8 @@ const emptyForm = {
   installments: "1",
   is_public: true,
   max_installments_card: "12",
-  credit_card_fee_percent: "0"
+  credit_card_fee_percent: "0",
+  boleto_fee_percent: "0"
 };
 
 const TRIP_DRAFT_KEY = "minha-viagem-admin-trip-draft";
