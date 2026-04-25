@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Progress } from "@/components/ui/progress";
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
+import { celebrateApproval } from "@/lib/celebrate";
 import { 
   MessageCircle, 
   Info, 
