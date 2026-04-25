@@ -134,13 +134,13 @@ serve(async (req) => {
     }
 
     // Limpeza isolada — cada delete é independente, falha de um não derruba os outros
-    const cleanups: { name: string; promise: Promise<any> }[] = [
-      { name: "notifications", promise: adminClient.from("notifications").delete().eq("user_id", userId) },
-      { name: "installments", promise: adminClient.from("installments").delete().eq("user_id", userId) },
-      { name: "trip_queries", promise: adminClient.from("trip_queries").delete().eq("user_id", userId) },
-      { name: "trip_seats", promise: adminClient.from("trip_seats").delete().eq("user_id", userId) },
-      { name: "user_companies", promise: adminClient.from("user_companies").delete().eq("user_id", userId) },
-      { name: "user_roles", promise: adminClient.from("user_roles").delete().eq("user_id", userId) },
+    const cleanups: { name: string; promise: PromiseLike<any> }[] = [
+      { name: "notifications", promise: adminClient.from("notifications").delete().eq("user_id", userId) as unknown as PromiseLike<any> },
+      { name: "installments", promise: adminClient.from("installments").delete().eq("user_id", userId) as unknown as PromiseLike<any> },
+      { name: "trip_queries", promise: adminClient.from("trip_queries").delete().eq("user_id", userId) as unknown as PromiseLike<any> },
+      { name: "trip_seats", promise: adminClient.from("trip_seats").delete().eq("user_id", userId) as unknown as PromiseLike<any> },
+      { name: "user_companies", promise: adminClient.from("user_companies").delete().eq("user_id", userId) as unknown as PromiseLike<any> },
+      { name: "user_roles", promise: adminClient.from("user_roles").delete().eq("user_id", userId) as unknown as PromiseLike<any> },
     ];
     const results = await Promise.allSettled(cleanups.map((c) => c.promise));
     results.forEach((r, i) => {
