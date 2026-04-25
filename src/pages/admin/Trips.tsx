@@ -303,8 +303,8 @@ export default function AdminTrips() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Valor Total (R$)</Label>
-                <Input type="number" value={form.total_price} onChange={(e) => setForm({ ...form, total_price: e.target.value })} className="bg-secondary/50" />
+                <Label>Valor Total (R$) <span className="text-destructive">*</span></Label>
+                <Input type="number" min="0" step="0.01" required value={form.total_price} onChange={(e) => setForm({ ...form, total_price: e.target.value })} className="bg-secondary/50" placeholder="Ex: 1500.00" />
               </div>
               {!editTrip && form.user_id && form.user_id !== "none" && (
                 <div className="space-y-2">
