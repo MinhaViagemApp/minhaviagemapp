@@ -124,12 +124,20 @@ export default function AdminTrips() {
   };
 
   const handleSave = async () => {
+    // Validações obrigatórias
+    if (!form.destination?.trim()) { toast.error("Informe o destino da viagem."); return; }
+    if (!form.start_date || !form.end_date) { toast.error("Informe as datas de ida e volta."); return; }
+    const priceNum = parseFloat(form.total_price);
+    if (!form.total_price || isNaN(priceNum) || priceNum <= 0) {
+      toast.error("Informe o valor total da viagem (maior que zero).");
+      return;
+    }
     const { data: companyId } = await supabase.rpc("get_user_company_id", { _user_id: user?.id || "00000000-0000-0000-0000-000000000000" });
     const payload = {
       destination: form.destination,
       start_date: form.start_date,
       end_date: form.end_date,
-      total_price: parseFloat(form.total_price),
+      total_price: priceNum,
       description: form.description,
       user_id: form.user_id || user?.id || "",
       company_id: companyId || null,
