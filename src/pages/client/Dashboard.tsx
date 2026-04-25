@@ -12,6 +12,7 @@ import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
 import { celebrateApproval } from "@/lib/celebrate";
+import { computePrice, validateCoupon, type ValidatedCoupon } from "@/lib/pricing";
 import { 
   MessageCircle, 
   Info, 
