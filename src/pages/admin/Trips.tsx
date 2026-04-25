@@ -112,7 +112,8 @@ export default function AdminTrips() {
       installments: "1",
       is_public: trip.is_public || false,
       max_installments_card: String(trip.max_installments_card || 12),
-      credit_card_fee_percent: String(trip.credit_card_fee_percent || 0)
+      credit_card_fee_percent: String(trip.credit_card_fee_percent || 0),
+      boleto_fee_percent: String((trip as any).boleto_fee_percent || 0)
     });
     setOpen(true);
   };
