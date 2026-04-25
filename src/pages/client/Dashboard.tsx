@@ -191,6 +191,43 @@ export default function ClientDashboard() {
     return () => window.clearInterval(timer);
   }, [photos.length]);
 
+  // Realtime: detecta aprovação de pré-reserva e celebra com confetti
+  const celebratedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`client-approval-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "trip_queries",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          const newRow = payload.new;
+          if (
+            newRow?.status === "confirmada" &&
+            !celebratedRef.current.has(newRow.id)
+          ) {
+            celebratedRef.current.add(newRow.id);
+            celebrateApproval();
+            toast.success(
+              "Sua pré-reserva foi aprovada! Estamos ansiosos para criar novas conexões ao seu lado.",
+              { duration: 7000 }
+            );
+            // Recarrega para refletir a viagem ativa
+            setTimeout(() => window.location.reload(), 1200);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const copyPix = () => {
     if (!pixKey) return;
     navigator.clipboard.writeText(pixKey);
