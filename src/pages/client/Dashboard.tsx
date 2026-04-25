@@ -569,7 +569,7 @@ export default function ClientDashboard() {
         </div>
       </div>
 
-      <Dialog open={!!selectedPublicTrip} onOpenChange={() => setSelectedPublicTrip(null)}>
+      <Dialog open={!!selectedPublicTrip} onOpenChange={() => { setSelectedPublicTrip(null); setCoupon(null); setCouponInput(""); }}>
         <DialogContent className="glass-strong max-w-3xl w-[95vw] max-h-[92vh] overflow-y-auto border-primary/20 shadow-2xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-2xl font-black">
