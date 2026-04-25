@@ -40,6 +40,8 @@ interface Trip {
   created_at: string;
   is_public?: boolean;
   max_installments_card?: number;
+  credit_card_fee_percent?: number;
+  boleto_fee_percent?: number;
 }
 
 export default function ClientDashboard() {
