@@ -15,6 +15,7 @@ import AdminClients from "./pages/admin/Clients";
 import AdminTrips from "./pages/admin/Trips";
 import AdminPayments from "./pages/admin/Payments";
 import AdminPromotions from "./pages/admin/Promotions";
+import AdminCoupons from "./pages/admin/Coupons";
 import ClientDashboard from "./pages/client/Dashboard";
 import ClientPayments from "./pages/client/Payments";
 import ClientPromotions from "./pages/client/Promotions";
