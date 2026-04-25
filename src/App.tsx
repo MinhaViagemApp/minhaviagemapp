@@ -19,6 +19,7 @@ import ClientDashboard from "./pages/client/Dashboard";
 import ClientPayments from "./pages/client/Payments";
 import ClientPromotions from "./pages/client/Promotions";
 import ClientNotifications from "./pages/client/Notifications";
+import ClientMyTrips from "./pages/client/MyTrips";
 import CompanyProfile from "./pages/CompanyProfile";
 
 const queryClient = new QueryClient();
