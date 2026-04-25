@@ -293,6 +293,8 @@ export default function ClientDashboard() {
       seat_number: parseInt(selectedSeat),
       passenger_name: (user.user_metadata?.name as string) || user.email || "Cliente",
       phone: (user.user_metadata?.phone as string) || null,
+      coupon_code: coupon?.code || null,
+      discount_percent: coupon?.discount_percent || 0,
     } as any);
 
     if (queryErr) {
