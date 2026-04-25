@@ -19,6 +19,7 @@ import ClientDashboard from "./pages/client/Dashboard";
 import ClientPayments from "./pages/client/Payments";
 import ClientPromotions from "./pages/client/Promotions";
 import ClientNotifications from "./pages/client/Notifications";
+import ClientMyTrips from "./pages/client/MyTrips";
 import CompanyProfile from "./pages/CompanyProfile";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
 
             <Route path="/client" element={<AppLayout requiredRole="cliente" />}>
               <Route index element={<ClientDashboard />} />
+              <Route path="my-trips" element={<ClientMyTrips />} />
               <Route path="payments" element={<ClientPayments />} />
               <Route path="promotions" element={<ClientPromotions />} />
               <Route path="notifications" element={<ClientNotifications />} />

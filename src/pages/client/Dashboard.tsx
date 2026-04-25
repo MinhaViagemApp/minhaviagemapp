@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Progress } from "@/components/ui/progress";
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
+import { celebrateApproval } from "@/lib/celebrate";
 import { 
   MessageCircle, 
   Info, 
@@ -189,6 +191,43 @@ export default function ClientDashboard() {
     return () => window.clearInterval(timer);
   }, [photos.length]);
 
+  // Realtime: detecta aprovação de pré-reserva e celebra com confetti
+  const celebratedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!user) return;
+    const channel = supabase
+      .channel(`client-approval-${user.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "trip_queries",
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload: any) => {
+          const newRow = payload.new;
+          if (
+            newRow?.status === "confirmada" &&
+            !celebratedRef.current.has(newRow.id)
+          ) {
+            celebratedRef.current.add(newRow.id);
+            celebrateApproval();
+            toast.success(
+              "Sua pré-reserva foi aprovada! Estamos ansiosos para criar novas conexões ao seu lado.",
+              { duration: 7000 }
+            );
+            // Recarrega para refletir a viagem ativa
+            setTimeout(() => window.location.reload(), 1200);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const copyPix = () => {
     if (!pixKey) return;
     navigator.clipboard.writeText(pixKey);
@@ -284,22 +323,22 @@ export default function ClientDashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Banner: Viagem Ativa */}
+      {/* Banner: Acompanhe sua viagem */}
       {trip && (
-        <button
-          onClick={() => document.getElementById("minha-viagem-ativa")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        <Link
+          to="/client/my-trips"
           className="w-full text-left glass-strong rounded-2xl p-4 sm:p-5 border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 hover:scale-[1.01] transition-all shadow-lg shadow-emerald-500/10 animate-fade-in flex items-center gap-4"
         >
           <div className="bg-emerald-500/20 p-3 rounded-xl border border-emerald-500/30 shrink-0">
             <Plane className="h-6 w-6 text-emerald-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Você tem uma viagem ativa</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Acompanhe sua viagem aqui!</p>
             <p className="text-base sm:text-lg font-black truncate">{trip.destination}</p>
-            <p className="text-xs text-muted-foreground">Toque para ver todos os detalhes da sua viagem</p>
+            <p className="text-xs text-muted-foreground">Toque para abrir Minhas Viagens e ver o progresso</p>
           </div>
           <ChevronRight className="h-5 w-5 text-emerald-400 shrink-0" />
-        </button>
+        </Link>
       )}
 
       {/* Hero Welcome Section */}

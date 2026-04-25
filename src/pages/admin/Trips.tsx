@@ -124,12 +124,20 @@ export default function AdminTrips() {
   };
 
   const handleSave = async () => {
+    // Validações obrigatórias
+    if (!form.destination?.trim()) { toast.error("Informe o destino da viagem."); return; }
+    if (!form.start_date || !form.end_date) { toast.error("Informe as datas de ida e volta."); return; }
+    const priceNum = parseFloat(form.total_price);
+    if (!form.total_price || isNaN(priceNum) || priceNum <= 0) {
+      toast.error("Informe o valor total da viagem (maior que zero).");
+      return;
+    }
     const { data: companyId } = await supabase.rpc("get_user_company_id", { _user_id: user?.id || "00000000-0000-0000-0000-000000000000" });
     const payload = {
       destination: form.destination,
       start_date: form.start_date,
       end_date: form.end_date,
-      total_price: parseFloat(form.total_price),
+      total_price: priceNum,
       description: form.description,
       user_id: form.user_id || user?.id || "",
       company_id: companyId || null,
@@ -295,8 +303,8 @@ export default function AdminTrips() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Valor Total (R$)</Label>
-                <Input type="number" value={form.total_price} onChange={(e) => setForm({ ...form, total_price: e.target.value })} className="bg-secondary/50" />
+                <Label>Valor Total (R$) <span className="text-destructive">*</span></Label>
+                <Input type="number" min="0" step="0.01" required value={form.total_price} onChange={(e) => setForm({ ...form, total_price: e.target.value })} className="bg-secondary/50" placeholder="Ex: 1500.00" />
               </div>
               {!editTrip && form.user_id && form.user_id !== "none" && (
                 <div className="space-y-2">
