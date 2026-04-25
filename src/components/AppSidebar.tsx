@@ -36,7 +36,8 @@ const adminItems = [
 ];
 
 const clientItems = [
-  { title: "Minha Viagem", url: "/client", icon: Plane },
+  { title: "Início", url: "/client", icon: Plane },
+  { title: "Minhas Viagens", url: "/client/my-trips", icon: MapPinned },
   { title: "Pagamentos", url: "/client/payments", icon: CreditCard },
   { title: "Promoções", url: "/client/promotions", icon: Tag },
   { title: "Notificações", url: "/client/notifications", icon: Bell },
