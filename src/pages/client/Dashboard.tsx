@@ -275,6 +275,7 @@ export default function ClientDashboard() {
           const newRow = payload.new;
           if (newRow?.status === "confirmada" && !celebratedRef.current.has(newRow.id)) {
             celebratedRef.current.add(newRow.id);
+            try { localStorage.setItem(`approval-shown-${newRow.id}`, "1"); } catch {}
             celebrateApproval();
             // Buscar destino para mostrar no modal
             const { data: t } = await supabase
