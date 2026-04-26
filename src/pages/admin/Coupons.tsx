@@ -19,9 +19,11 @@ interface Coupon {
   cash_only: boolean;
   active: boolean;
   created_at: string;
+  usage_limit: number | null;
+  usage_count: number;
 }
 
-const empty = { code: "", discount_percent: "10", expires_at: "", cash_only: true, active: true };
+const empty = { code: "", discount_percent: "10", expires_at: "", cash_only: true, active: true, usage_limit: "" };
 
 export default function AdminCoupons() {
   const { user } = useAuth();
