@@ -368,11 +368,16 @@ export default function ClientDashboard() {
       {/* Hero Welcome Section */}
       <div className="text-left space-y-2 animate-fade-in translate-y-[-10px]">
         <h1 className="text-3xl md:text-4xl font-black gradient-primary-text leading-tight">
-          Vamos viajar e escolha seu próximo destino
+          {trip ? "Sua viagem está confirmada!" : "Escolha seu próximo destino"}
         </h1>
         {!trip && (
           <p className="text-muted-foreground text-sm font-medium">
-            Você ainda não tem reservas ativas. Confira nossas melhores ofertas abaixo!
+            Confira nossas melhores ofertas abaixo e garanta sua próxima aventura.
+          </p>
+        )}
+        {trip && (
+          <p className="text-muted-foreground text-sm font-medium">
+            Agora você tem uma viagem ativa. Confira todos os detalhes em <Link to="/client/my-trips" className="text-primary font-bold underline">Minhas Viagens</Link>.
           </p>
         )}
       </div>
