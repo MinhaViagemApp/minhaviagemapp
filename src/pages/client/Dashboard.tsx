@@ -472,6 +472,27 @@ export default function ClientDashboard() {
                   </div>
                 </div>
 
+                {activeQuery && (
+                  <div className="glass-strong rounded-xl p-4 space-y-2 border-primary/20">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-primary tracking-widest">
+                      <CreditCard className="h-3 w-3" />
+                      Forma de Pagamento
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-bold capitalize">{activeQuery.payment_method}</span>
+                      <span className="text-muted-foreground">
+                        {activeQuery.installments}x parcela{activeQuery.installments > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {activeQuery.coupon_code && (
+                      <div className="flex items-center gap-2 text-xs text-emerald-400">
+                        <Tag className="h-3 w-3" />
+                        Cupom aplicado: <span className="font-mono font-bold">{activeQuery.coupon_code}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {pixKey && (
                   <div className="glass-strong rounded-xl p-4 space-y-3 border-emerald-500/20 bg-emerald-500/5">
                     <div className="flex items-center gap-2 text-[10px] font-black uppercase text-emerald-500 tracking-tighter">
