@@ -189,6 +189,8 @@ export type Database = {
           expires_at: string | null
           id: string
           updated_at: string
+          usage_count: number
+          usage_limit: number | null
         }
         Insert: {
           active?: boolean
@@ -200,6 +202,8 @@ export type Database = {
           expires_at?: string | null
           id?: string
           updated_at?: string
+          usage_count?: number
+          usage_limit?: number | null
         }
         Update: {
           active?: boolean
@@ -211,6 +215,8 @@ export type Database = {
           expires_at?: string | null
           id?: string
           updated_at?: string
+          usage_count?: number
+          usage_limit?: number | null
         }
         Relationships: [
           {
@@ -707,6 +713,7 @@ export type Database = {
         Args: { _client_id: string; _query_id: string }
         Returns: undefined
       }
+      consume_coupon: { Args: { _code: string }; Returns: undefined }
       get_auth_email: { Args: never; Returns: string }
       get_user_company_id: { Args: { _user_id: string }; Returns: string }
       has_role: {

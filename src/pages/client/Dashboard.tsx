@@ -52,6 +52,7 @@ export default function ClientDashboard() {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [pixKey, setPixKey] = useState("");
   const [bookedSeat, setBookedSeat] = useState<string | null>(null);
+  const [activeQuery, setActiveQuery] = useState<{ payment_method: string; installments: number; coupon_code: string | null } | null>(null);
   const [publicTrips, setPublicTrips] = useState<Trip[]>([]);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [selectedPublicTrip, setSelectedPublicTrip] = useState<Trip | null>(null);
@@ -109,6 +110,7 @@ export default function ClientDashboard() {
         .limit(1);
         
       let activeTrip: Trip | null = (trips?.[0] as Trip | undefined) || null;
+      let confirmedQuery: any = null;
 
       // se não houver viagem privada, verificar se há uma pré-reserva confirmada (viagem pública)
       if (!activeTrip) {
@@ -120,7 +122,8 @@ export default function ClientDashboard() {
           .order("created_at", { ascending: false })
           .limit(1);
         
-        let relatedTrip = qConfirmed?.[0]?.trips;
+        confirmedQuery = qConfirmed?.[0] || null;
+        let relatedTrip = confirmedQuery?.trips;
         if (relatedTrip) {
           if (Array.isArray(relatedTrip)) relatedTrip = relatedTrip[0];
           activeTrip = relatedTrip as unknown as Trip;
@@ -129,6 +132,17 @@ export default function ClientDashboard() {
 
       setTrip(activeTrip);
 
+      if (confirmedQuery) {
+        setActiveQuery({
+          payment_method: confirmedQuery.payment_method,
+          installments: confirmedQuery.installments,
+          coupon_code: confirmedQuery.coupon_code,
+        });
+        if (confirmedQuery.seat_number != null) {
+          setBookedSeat(String(confirmedQuery.seat_number));
+        }
+      }
+
       if (activeTrip) {
         const { data: payments } = await supabase.from("payments").select("amount_paid").eq("trip_id", activeTrip.id);
         setPaidAmount(payments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0);
@@ -136,14 +150,16 @@ export default function ClientDashboard() {
         const { data: images } = await supabase.from("trip_images").select("image_url").eq("trip_id", activeTrip.id);
         setPhotos(images?.map(i => i.image_url) || []);
 
-        const { data: seat } = await (supabase as any)
-          .from("trip_seats")
-          .select("seat_number")
-          .eq("trip_id", activeTrip.id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (seat) setBookedSeat(seat.seat_number);
+        // Fallback: tenta tabela legada trip_seats se ainda não temos assento
+        if (!confirmedQuery?.seat_number) {
+          const { data: seat } = await (supabase as any)
+            .from("trip_seats")
+            .select("seat_number")
+            .eq("trip_id", activeTrip.id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (seat) setBookedSeat(seat.seat_number);
+        }
       }
 
       // Fetch public trips
@@ -352,11 +368,16 @@ export default function ClientDashboard() {
       {/* Hero Welcome Section */}
       <div className="text-left space-y-2 animate-fade-in translate-y-[-10px]">
         <h1 className="text-3xl md:text-4xl font-black gradient-primary-text leading-tight">
-          Vamos viajar e escolha seu próximo destino
+          {trip ? "Sua viagem está confirmada!" : "Escolha seu próximo destino"}
         </h1>
         {!trip && (
           <p className="text-muted-foreground text-sm font-medium">
-            Você ainda não tem reservas ativas. Confira nossas melhores ofertas abaixo!
+            Confira nossas melhores ofertas abaixo e garanta sua próxima aventura.
+          </p>
+        )}
+        {trip && (
+          <p className="text-muted-foreground text-sm font-medium">
+            Agora você tem uma viagem ativa. Confira todos os detalhes em <Link to="/client/my-trips" className="text-primary font-bold underline">Minhas Viagens</Link>.
           </p>
         )}
       </div>
@@ -450,6 +471,27 @@ export default function ClientDashboard() {
                     </p>
                   </div>
                 </div>
+
+                {activeQuery && (
+                  <div className="glass-strong rounded-xl p-4 space-y-2 border-primary/20">
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase text-primary tracking-widest">
+                      <CreditCard className="h-3 w-3" />
+                      Forma de Pagamento
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-bold capitalize">{activeQuery.payment_method}</span>
+                      <span className="text-muted-foreground">
+                        {activeQuery.installments}x parcela{activeQuery.installments > 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {activeQuery.coupon_code && (
+                      <div className="flex items-center gap-2 text-xs text-emerald-400">
+                        <Tag className="h-3 w-3" />
+                        Cupom aplicado: <span className="font-mono font-bold">{activeQuery.coupon_code}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {pixKey && (
                   <div className="glass-strong rounded-xl p-4 space-y-3 border-emerald-500/20 bg-emerald-500/5">

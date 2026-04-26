@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TripProgressRoad } from "@/components/client/TripProgressRoad";
-import { Plane, MapPin, Calendar, Loader2 } from "lucide-react";
+import { Plane, MapPin, Calendar, Loader2, Armchair, CreditCard, Tag } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -18,6 +18,10 @@ interface ActiveTrip {
   created_at: string;
   status: string;
   query_created_at?: string;
+  seat_number?: number | null;
+  payment_method?: string | null;
+  installments?: number | null;
+  coupon_code?: string | null;
 }
 
 export default function MyTrips() {
@@ -44,13 +48,20 @@ export default function MyTrips() {
         // Viagens via pré-reserva confirmada
         const { data: confirmed } = await supabase
           .from("trip_queries")
-          .select("created_at, trips(*)")
+          .select("created_at, seat_number, payment_method, installments, coupon_code, trips(*)")
           .eq("user_id", user.id)
           .eq("status", "confirmada");
         (confirmed || []).forEach((q: any) => {
           const t = Array.isArray(q.trips) ? q.trips[0] : q.trips;
           if (t && new Date(t.end_date) >= new Date(today)) {
-            list.set(t.id, { ...t, query_created_at: q.created_at });
+            list.set(t.id, {
+              ...t,
+              query_created_at: q.created_at,
+              seat_number: q.seat_number,
+              payment_method: q.payment_method,
+              installments: q.installments,
+              coupon_code: q.coupon_code,
+            });
           }
         });
 
@@ -135,12 +146,12 @@ export default function MyTrips() {
                   </p>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   <div className="bg-secondary/40 rounded-lg p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Valor da viagem
                     </p>
-                    <p className="text-lg font-black text-primary">
+                    <p className="text-base font-black text-primary">
                       R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </p>
                   </div>
@@ -148,11 +159,35 @@ export default function MyTrips() {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Status
                     </p>
-                    <p className="text-lg font-black text-emerald-400 capitalize">
+                    <p className="text-base font-black text-emerald-400 capitalize">
                       {trip.status === "active" ? "Ativa" : trip.status === "scheduled" ? "Agendada" : trip.status}
                     </p>
                   </div>
+                  <div className="bg-secondary/40 rounded-lg p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Armchair className="h-3 w-3" /> Poltrona
+                    </p>
+                    <p className="text-base font-black text-orange-400">
+                      {trip.seat_number ?? "—"}
+                    </p>
+                  </div>
+                  <div className="bg-secondary/40 rounded-lg p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <CreditCard className="h-3 w-3" /> Pagamento
+                    </p>
+                    <p className="text-base font-black text-foreground capitalize">
+                      {trip.payment_method ?? "—"}
+                      {trip.installments && trip.installments > 1 ? ` ${trip.installments}x` : ""}
+                    </p>
+                  </div>
                 </div>
+
+                {trip.coupon_code && (
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
+                    <Tag className="h-3.5 w-3.5" />
+                    Cupom aplicado: <span className="font-mono font-bold">{trip.coupon_code}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
