@@ -110,6 +110,7 @@ export default function ClientDashboard() {
         .limit(1);
         
       let activeTrip: Trip | null = (trips?.[0] as Trip | undefined) || null;
+      let confirmedQuery: any = null;
 
       // se não houver viagem privada, verificar se há uma pré-reserva confirmada (viagem pública)
       if (!activeTrip) {
@@ -121,7 +122,8 @@ export default function ClientDashboard() {
           .order("created_at", { ascending: false })
           .limit(1);
         
-        let relatedTrip = qConfirmed?.[0]?.trips;
+        confirmedQuery = qConfirmed?.[0] || null;
+        let relatedTrip = confirmedQuery?.trips;
         if (relatedTrip) {
           if (Array.isArray(relatedTrip)) relatedTrip = relatedTrip[0];
           activeTrip = relatedTrip as unknown as Trip;
@@ -130,6 +132,17 @@ export default function ClientDashboard() {
 
       setTrip(activeTrip);
 
+      if (confirmedQuery) {
+        setActiveQuery({
+          payment_method: confirmedQuery.payment_method,
+          installments: confirmedQuery.installments,
+          coupon_code: confirmedQuery.coupon_code,
+        });
+        if (confirmedQuery.seat_number != null) {
+          setBookedSeat(String(confirmedQuery.seat_number));
+        }
+      }
+
       if (activeTrip) {
         const { data: payments } = await supabase.from("payments").select("amount_paid").eq("trip_id", activeTrip.id);
         setPaidAmount(payments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0);
@@ -137,14 +150,16 @@ export default function ClientDashboard() {
         const { data: images } = await supabase.from("trip_images").select("image_url").eq("trip_id", activeTrip.id);
         setPhotos(images?.map(i => i.image_url) || []);
 
-        const { data: seat } = await (supabase as any)
-          .from("trip_seats")
-          .select("seat_number")
-          .eq("trip_id", activeTrip.id)
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (seat) setBookedSeat(seat.seat_number);
+        // Fallback: tenta tabela legada trip_seats se ainda não temos assento
+        if (!confirmedQuery?.seat_number) {
+          const { data: seat } = await (supabase as any)
+            .from("trip_seats")
+            .select("seat_number")
+            .eq("trip_id", activeTrip.id)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (seat) setBookedSeat(seat.seat_number);
+        }
       }
 
       // Fetch public trips
