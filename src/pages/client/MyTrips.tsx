@@ -146,12 +146,12 @@ export default function MyTrips() {
                   </p>
                 )}
 
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   <div className="bg-secondary/40 rounded-lg p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Valor da viagem
                     </p>
-                    <p className="text-lg font-black text-primary">
+                    <p className="text-base font-black text-primary">
                       R$ {Number(trip.total_price).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                     </p>
                   </div>
@@ -159,11 +159,35 @@ export default function MyTrips() {
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
                       Status
                     </p>
-                    <p className="text-lg font-black text-emerald-400 capitalize">
+                    <p className="text-base font-black text-emerald-400 capitalize">
                       {trip.status === "active" ? "Ativa" : trip.status === "scheduled" ? "Agendada" : trip.status}
                     </p>
                   </div>
+                  <div className="bg-secondary/40 rounded-lg p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <Armchair className="h-3 w-3" /> Poltrona
+                    </p>
+                    <p className="text-base font-black text-orange-400">
+                      {trip.seat_number ?? "—"}
+                    </p>
+                  </div>
+                  <div className="bg-secondary/40 rounded-lg p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <CreditCard className="h-3 w-3" /> Pagamento
+                    </p>
+                    <p className="text-base font-black text-foreground capitalize">
+                      {trip.payment_method ?? "—"}
+                      {trip.installments && trip.installments > 1 ? ` ${trip.installments}x` : ""}
+                    </p>
+                  </div>
                 </div>
+
+                {trip.coupon_code && (
+                  <div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
+                    <Tag className="h-3.5 w-3.5" />
+                    Cupom aplicado: <span className="font-mono font-bold">{trip.coupon_code}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           );
