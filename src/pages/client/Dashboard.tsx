@@ -46,7 +46,9 @@ interface Trip {
 
 export default function ClientDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [trip, setTrip] = useState<Trip | null>(null);
+  const [approvalModal, setApprovalModal] = useState<{ open: boolean; destination: string }>({ open: false, destination: "" });
   const [paidAmount, setPaidAmount] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
