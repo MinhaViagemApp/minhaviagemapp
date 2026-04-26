@@ -52,6 +52,7 @@ export default function ClientDashboard() {
   const [photoIdx, setPhotoIdx] = useState(0);
   const [pixKey, setPixKey] = useState("");
   const [bookedSeat, setBookedSeat] = useState<string | null>(null);
+  const [activeQuery, setActiveQuery] = useState<{ payment_method: string; installments: number; coupon_code: string | null } | null>(null);
   const [publicTrips, setPublicTrips] = useState<Trip[]>([]);
   const [promotions, setPromotions] = useState<any[]>([]);
   const [selectedPublicTrip, setSelectedPublicTrip] = useState<Trip | null>(null);
