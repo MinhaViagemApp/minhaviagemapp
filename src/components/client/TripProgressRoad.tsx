@@ -88,7 +88,7 @@ export function TripProgressRoad({ createdAt, startDate, label }: TripProgressRo
         </div>
 
         {/* Estrada (asfalto) */}
-        <div className="relative h-10 w-full rounded-xl bg-zinc-800 border border-zinc-700 overflow-hidden shadow-inner">
+        <div className="relative h-10 w-full rounded-xl bg-secondary border border-border overflow-hidden shadow-inner">
           {/* Faixa central tracejada animada */}
           <div
             className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 opacity-90"
