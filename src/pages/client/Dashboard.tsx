@@ -838,6 +838,47 @@ export default function ClientDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Aprovação - aparece quando admin confirma a pré-reserva */}
+      <Dialog open={approvalModal.open} onOpenChange={(o) => setApprovalModal((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-md glass-strong border-emerald-500/40">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black gradient-primary-text text-center">
+              🎉 Reserva Confirmada!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2 text-center">
+            <div className="mx-auto bg-emerald-500/15 border border-emerald-500/40 rounded-full p-4 w-20 h-20 flex items-center justify-center animate-scale-in">
+              <Check className="h-10 w-10 text-emerald-400" />
+            </div>
+            <div className="space-y-2">
+              <p className="font-bold text-lg">Sua viagem para <span className="text-primary">{approvalModal.destination}</span> foi aprovada!</p>
+              <p className="text-sm text-muted-foreground">
+                Todos os detalhes — forma de pagamento, poltrona e barra de progresso até o embarque — já estão disponíveis em <strong>Minhas Viagens</strong>.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                size="lg"
+                className="w-full bg-gradient-to-r from-primary to-accent text-white font-black"
+                onClick={() => {
+                  setApprovalModal({ open: false, destination: "" });
+                  navigate("/client/my-trips");
+                }}
+              >
+                Conferir minhas viagens →
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setApprovalModal({ open: false, destination: "" })}
+              >
+                Continuar navegando
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
