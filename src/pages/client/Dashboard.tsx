@@ -215,8 +215,33 @@ export default function ClientDashboard() {
     return () => window.clearInterval(timer);
   }, [photos.length]);
 
-  // Realtime: detecta aprovação de pré-reserva e celebra com confetti
+  // Realtime: detecta aprovação de pré-reserva, dispara confetti e abre modal com CTA
   const celebratedRef = useRef<Set<string>>(new Set());
+  const refetchActiveTrip = async () => {
+    if (!user) return;
+    const today = new Date().toISOString().split("T")[0];
+    const { data: qConfirmed } = await supabase
+      .from("trip_queries")
+      .select("*, trips(*)")
+      .eq("user_id", user.id)
+      .eq("status", "confirmada")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const cq: any = qConfirmed?.[0];
+    if (!cq) return;
+    let relatedTrip = cq.trips;
+    if (Array.isArray(relatedTrip)) relatedTrip = relatedTrip[0];
+    if (relatedTrip && relatedTrip.end_date >= today) {
+      setTrip(relatedTrip as Trip);
+      setActiveQuery({
+        payment_method: cq.payment_method,
+        installments: cq.installments,
+        coupon_code: cq.coupon_code,
+      });
+      if (cq.seat_number != null) setBookedSeat(String(cq.seat_number));
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -229,20 +254,20 @@ export default function ClientDashboard() {
           table: "trip_queries",
           filter: `user_id=eq.${user.id}`,
         },
-        (payload: any) => {
+        async (payload: any) => {
           const newRow = payload.new;
-          if (
-            newRow?.status === "confirmada" &&
-            !celebratedRef.current.has(newRow.id)
-          ) {
+          if (newRow?.status === "confirmada" && !celebratedRef.current.has(newRow.id)) {
             celebratedRef.current.add(newRow.id);
             celebrateApproval();
-            toast.success(
-              "Sua pré-reserva foi aprovada! Estamos ansiosos para criar novas conexões ao seu lado.",
-              { duration: 7000 }
-            );
-            // Recarrega para refletir a viagem ativa
-            setTimeout(() => window.location.reload(), 1200);
+            // Buscar destino para mostrar no modal
+            const { data: t } = await supabase
+              .from("trips")
+              .select("destination")
+              .eq("id", newRow.trip_id)
+              .maybeSingle();
+            setApprovalModal({ open: true, destination: t?.destination || "sua próxima viagem" });
+            // Atualiza estado da viagem ativa sem recarregar a página
+            await refetchActiveTrip();
           }
         }
       )
