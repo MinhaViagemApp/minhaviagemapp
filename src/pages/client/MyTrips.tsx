@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TripProgressRoad } from "@/components/client/TripProgressRoad";
-import { Plane, MapPin, Calendar, Loader2 } from "lucide-react";
+import { Plane, MapPin, Calendar, Loader2, Armchair, CreditCard, Tag } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -18,6 +18,10 @@ interface ActiveTrip {
   created_at: string;
   status: string;
   query_created_at?: string;
+  seat_number?: number | null;
+  payment_method?: string | null;
+  installments?: number | null;
+  coupon_code?: string | null;
 }
 
 export default function MyTrips() {
@@ -44,13 +48,20 @@ export default function MyTrips() {
         // Viagens via pré-reserva confirmada
         const { data: confirmed } = await supabase
           .from("trip_queries")
-          .select("created_at, trips(*)")
+          .select("created_at, seat_number, payment_method, installments, coupon_code, trips(*)")
           .eq("user_id", user.id)
           .eq("status", "confirmada");
         (confirmed || []).forEach((q: any) => {
           const t = Array.isArray(q.trips) ? q.trips[0] : q.trips;
           if (t && new Date(t.end_date) >= new Date(today)) {
-            list.set(t.id, { ...t, query_created_at: q.created_at });
+            list.set(t.id, {
+              ...t,
+              query_created_at: q.created_at,
+              seat_number: q.seat_number,
+              payment_method: q.payment_method,
+              installments: q.installments,
+              coupon_code: q.coupon_code,
+            });
           }
         });
 
