@@ -180,6 +180,10 @@ export default function AdminCoupons() {
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p>Validade: {c.expires_at ? new Date(c.expires_at).toLocaleDateString("pt-BR") : "Sem validade"}</p>
                     <p>{c.cash_only ? "Apenas à vista" : "Qualquer pagamento"}</p>
+                    <p>
+                      Usos: <span className="font-bold text-foreground">{c.usage_count ?? 0}</span>
+                      {c.usage_limit ? ` / ${c.usage_limit}` : " (ilimitado)"}
+                    </p>
                   </div>
                   <div className="flex gap-2 pt-2">
                     <Button variant="outline" size="sm" onClick={() => toggleActive(c)} className="flex-1">
