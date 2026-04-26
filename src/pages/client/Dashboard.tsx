@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Progress } from "@/components/ui/progress";
@@ -46,7 +46,9 @@ interface Trip {
 
 export default function ClientDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [trip, setTrip] = useState<Trip | null>(null);
+  const [approvalModal, setApprovalModal] = useState<{ open: boolean; destination: string }>({ open: false, destination: "" });
   const [paidAmount, setPaidAmount] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoIdx, setPhotoIdx] = useState(0);
@@ -213,8 +215,33 @@ export default function ClientDashboard() {
     return () => window.clearInterval(timer);
   }, [photos.length]);
 
-  // Realtime: detecta aprovação de pré-reserva e celebra com confetti
+  // Realtime: detecta aprovação de pré-reserva, dispara confetti e abre modal com CTA
   const celebratedRef = useRef<Set<string>>(new Set());
+  const refetchActiveTrip = async () => {
+    if (!user) return;
+    const today = new Date().toISOString().split("T")[0];
+    const { data: qConfirmed } = await supabase
+      .from("trip_queries")
+      .select("*, trips(*)")
+      .eq("user_id", user.id)
+      .eq("status", "confirmada")
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const cq: any = qConfirmed?.[0];
+    if (!cq) return;
+    let relatedTrip = cq.trips;
+    if (Array.isArray(relatedTrip)) relatedTrip = relatedTrip[0];
+    if (relatedTrip && relatedTrip.end_date >= today) {
+      setTrip(relatedTrip as Trip);
+      setActiveQuery({
+        payment_method: cq.payment_method,
+        installments: cq.installments,
+        coupon_code: cq.coupon_code,
+      });
+      if (cq.seat_number != null) setBookedSeat(String(cq.seat_number));
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     const channel = supabase
@@ -227,20 +254,20 @@ export default function ClientDashboard() {
           table: "trip_queries",
           filter: `user_id=eq.${user.id}`,
         },
-        (payload: any) => {
+        async (payload: any) => {
           const newRow = payload.new;
-          if (
-            newRow?.status === "confirmada" &&
-            !celebratedRef.current.has(newRow.id)
-          ) {
+          if (newRow?.status === "confirmada" && !celebratedRef.current.has(newRow.id)) {
             celebratedRef.current.add(newRow.id);
             celebrateApproval();
-            toast.success(
-              "Sua pré-reserva foi aprovada! Estamos ansiosos para criar novas conexões ao seu lado.",
-              { duration: 7000 }
-            );
-            // Recarrega para refletir a viagem ativa
-            setTimeout(() => window.location.reload(), 1200);
+            // Buscar destino para mostrar no modal
+            const { data: t } = await supabase
+              .from("trips")
+              .select("destination")
+              .eq("id", newRow.trip_id)
+              .maybeSingle();
+            setApprovalModal({ open: true, destination: t?.destination || "sua próxima viagem" });
+            // Atualiza estado da viagem ativa sem recarregar a página
+            await refetchActiveTrip();
           }
         }
       )
@@ -807,6 +834,47 @@ export default function ClientDashboard() {
                 <Check className="mr-3 h-6 w-6" /> Confirmar Pré-reserva
               </Button>
               <p className="text-[10px] text-center text-muted-foreground font-medium italic">Sua intenção de reserva será enviada ao administrador.</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Aprovação - aparece quando admin confirma a pré-reserva */}
+      <Dialog open={approvalModal.open} onOpenChange={(o) => setApprovalModal((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-md glass-strong border-emerald-500/40">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black gradient-primary-text text-center">
+              🎉 Reserva Confirmada!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2 text-center">
+            <div className="mx-auto bg-emerald-500/15 border border-emerald-500/40 rounded-full p-4 w-20 h-20 flex items-center justify-center animate-scale-in">
+              <Check className="h-10 w-10 text-emerald-400" />
+            </div>
+            <div className="space-y-2">
+              <p className="font-bold text-lg">Sua viagem para <span className="text-primary">{approvalModal.destination}</span> foi aprovada!</p>
+              <p className="text-sm text-muted-foreground">
+                Todos os detalhes — forma de pagamento, poltrona e barra de progresso até o embarque — já estão disponíveis em <strong>Minhas Viagens</strong>.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                size="lg"
+                className="w-full bg-gradient-to-r from-primary to-accent text-white font-black"
+                onClick={() => {
+                  setApprovalModal({ open: false, destination: "" });
+                  navigate("/client/my-trips");
+                }}
+              >
+                Conferir minhas viagens →
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setApprovalModal({ open: false, destination: "" })}
+              >
+                Continuar navegando
+              </Button>
             </div>
           </div>
         </DialogContent>
