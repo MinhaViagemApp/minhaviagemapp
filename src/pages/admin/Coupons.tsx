@@ -117,6 +117,19 @@ export default function AdminCoupons() {
                   <Input type="date" value={form.expires_at} onChange={(e) => setForm({ ...form, expires_at: e.target.value })} className="bg-secondary/50" />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label>Quantidade liberada</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={form.usage_limit}
+                  onChange={(e) => setForm({ ...form, usage_limit: e.target.value })}
+                  placeholder="Deixe vazio para ilimitado"
+                  className="bg-secondary/50"
+                />
+                <p className="text-xs text-muted-foreground">Quando atingir essa quantidade, o cupom será desativado automaticamente.</p>
+              </div>
               <div className="flex items-center justify-between rounded-lg border border-border bg-secondary/30 p-3">
                 <div>
                   <Label className="cursor-pointer">Apenas pagamento à vista</Label>
