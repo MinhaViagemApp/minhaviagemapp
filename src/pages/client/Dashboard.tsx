@@ -143,6 +143,23 @@ export default function ClientDashboard() {
         if (confirmedQuery.seat_number != null) {
           setBookedSeat(String(confirmedQuery.seat_number));
         }
+
+        // Celebração persistente: se ainda não mostramos o confetti para esta query, mostra agora
+        const flagKey = `approval-shown-${confirmedQuery.id}`;
+        if (typeof window !== "undefined" && !localStorage.getItem(flagKey)) {
+          celebratedRef.current.add(confirmedQuery.id);
+          localStorage.setItem(flagKey, "1");
+          setTimeout(() => {
+            celebrateApproval();
+            setApprovalModal({
+              open: true,
+              destination: activeTrip?.destination || "sua próxima viagem",
+            });
+          }, 600);
+        } else {
+          // já mostrado antes — apenas marca como celebrado pra evitar duplicidade no realtime
+          celebratedRef.current.add(confirmedQuery.id);
+        }
       }
 
       if (activeTrip) {
