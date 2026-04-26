@@ -73,7 +73,7 @@ export async function validateCoupon(
 
   const { data, error } = await (supabase as any)
     .from("coupons")
-    .select("code, discount_percent, expires_at, cash_only, active")
+    .select("code, discount_percent, expires_at, cash_only, active, usage_limit, usage_count")
     .eq("code", code)
     .eq("active", true)
     .maybeSingle();
@@ -83,6 +83,10 @@ export async function validateCoupon(
 
   if (data.expires_at && new Date(data.expires_at) < new Date()) {
     return { coupon: null, error: "Cupom expirado." };
+  }
+
+  if (data.usage_limit != null && Number(data.usage_count ?? 0) >= Number(data.usage_limit)) {
+    return { coupon: null, error: "Este cupom já atingiu o limite de uso." };
   }
 
   const isCash = paymentMethod === "pix" || paymentMethod === "dinheiro" || installments === 1;
