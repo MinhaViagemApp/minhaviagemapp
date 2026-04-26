@@ -50,6 +50,12 @@ export default function AdminCoupons() {
     if (!form.code.trim()) { toast.error("Informe o código do cupom."); return; }
     const pct = parseFloat(form.discount_percent);
     if (!pct || pct <= 0 || pct > 100) { toast.error("Percentual inválido (1-100)."); return; }
+    let limit: number | null = null;
+    if (form.usage_limit !== "" && form.usage_limit !== null) {
+      const n = parseInt(form.usage_limit);
+      if (isNaN(n) || n <= 0) { toast.error("Quantidade liberada deve ser um número maior que zero."); return; }
+      limit = n;
+    }
     setSaving(true);
     const { data: companyId } = await supabase.rpc("get_user_company_id", { _user_id: user?.id || "00000000-0000-0000-0000-000000000000" });
     if (!companyId) { toast.error("Empresa não encontrada."); setSaving(false); return; }
@@ -60,6 +66,7 @@ export default function AdminCoupons() {
       expires_at: form.expires_at || null,
       cash_only: form.cash_only,
       active: form.active,
+      usage_limit: limit,
     });
     setSaving(false);
     if (error) { toast.error(error.message); return; }
