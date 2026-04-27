@@ -1,9 +1,12 @@
-import { CheckCircle2, Circle, Clock, Copy, CreditCard, FileText, QrCode } from "lucide-react";
+import { CheckCircle2, Circle, Clock, Copy, CreditCard, FileText, QrCode, Upload, FileCheck2 } from "lucide-react";
 import { format, parseISO, isBefore, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface InstallmentItem {
   id: string;
@@ -12,6 +15,7 @@ export interface InstallmentItem {
   due_date: string;
   status: string; // pendente | pago | atrasado | cancelado
   paid_at?: string | null;
+  receipt_url?: string | null;
 }
 
 interface PaymentTimelineProps {
