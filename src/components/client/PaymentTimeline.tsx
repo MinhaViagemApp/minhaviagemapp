@@ -282,6 +282,13 @@ export function PaymentTimeline({
                     R$ {Number(inst.amount).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </span>
                 </div>
+                {enableUpload && (
+                  <ReceiptUpload
+                    installmentId={inst.id}
+                    receiptUrl={inst.receipt_url}
+                    onUploaded={onReceiptUploaded}
+                  />
+                )}
               </div>
             </li>
           );
