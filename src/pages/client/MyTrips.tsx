@@ -35,117 +35,108 @@ export default function MyTrips() {
   const [paymentsByTrip, setPaymentsByTrip] = useState<Record<string, number>>({});
   const [pixKey, setPixKey] = useState<string>("");
 
-  useEffect(() => {
+  const load = async () => {
     if (!user) return;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const today = new Date().toISOString().split("T")[0];
-        const list = new Map<string, ActiveTrip>();
+    try {
+      const today = new Date().toISOString().split("T")[0];
 
-        // Viagens privadas atribuídas ao usuário
-        const { data: own } = await supabase
-          .from("trips")
-          .select("*")
-          .eq("user_id", user.id)
-          .gte("end_date", today);
-        (own || []).forEach((t: any) => list.set(t.id, t));
-
-        // Viagens via pré-reserva confirmada (trip_queries)
-        const { data: confirmed } = await supabase
+      // Disparar buscas em paralelo
+      const [ownRes, confirmedRes, clientRowRes, adminsRes] = await Promise.all([
+        supabase.from("trips").select("*").eq("user_id", user.id).gte("end_date", today),
+        supabase
           .from("trip_queries")
           .select("created_at, seat_number, payment_method, installments, coupon_code, passenger_name, status, trips(*)")
           .eq("user_id", user.id)
-          .eq("status", "confirmada");
-        (confirmed || []).forEach((q: any) => {
-          const t = Array.isArray(q.trips) ? q.trips[0] : q.trips;
-          if (t && new Date(t.end_date) >= new Date(today)) {
+          .eq("status", "confirmada"),
+        user.email
+          ? supabase.from("clients").select("id").eq("email", user.email).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+        supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1),
+      ]);
+
+      const list = new Map<string, ActiveTrip>();
+      (ownRes.data || []).forEach((t: any) => list.set(t.id, t));
+      (confirmedRes.data || []).forEach((q: any) => {
+        const t = Array.isArray(q.trips) ? q.trips[0] : q.trips;
+        if (t && new Date(t.end_date) >= new Date(today)) {
+          list.set(t.id, {
+            ...t,
+            query_created_at: q.created_at,
+            seat_number: q.seat_number,
+            payment_method: q.payment_method,
+            installments: q.installments,
+            coupon_code: q.coupon_code,
+            passenger_name: q.passenger_name,
+            query_status: q.status,
+          });
+        }
+      });
+
+      const clientId = (clientRowRes as any)?.data?.id;
+      let bookings: any[] = [];
+      if (clientId) {
+        const { data } = await supabase
+          .from("bookings")
+          .select("created_at, payment_method, trips(*)")
+          .eq("client_id", clientId);
+        bookings = data || [];
+        bookings.forEach((b: any) => {
+          const t = Array.isArray(b.trips) ? b.trips[0] : b.trips;
+          if (t && new Date(t.end_date) >= new Date(today) && !list.has(t.id)) {
             list.set(t.id, {
               ...t,
-              query_created_at: q.created_at,
-              seat_number: q.seat_number,
-              payment_method: q.payment_method,
-              installments: q.installments,
-              coupon_code: q.coupon_code,
-              passenger_name: q.passenger_name,
-              query_status: q.status,
+              query_created_at: b.created_at,
+              payment_method: b.payment_method,
             });
           }
         });
-
-        // Viagens via bookings (independente do status), buscando client_id pelo email
-        if (user.email) {
-          const { data: clientRow } = await supabase
-            .from("clients")
-            .select("id")
-            .eq("email", user.email)
-            .maybeSingle();
-          if (clientRow?.id) {
-            const { data: bookings } = await supabase
-              .from("bookings")
-              .select("created_at, payment_method, trips(*)")
-              .eq("client_id", clientRow.id);
-            (bookings || []).forEach((b: any) => {
-              const t = Array.isArray(b.trips) ? b.trips[0] : b.trips;
-              if (t && new Date(t.end_date) >= new Date(today) && !list.has(t.id)) {
-                list.set(t.id, {
-                  ...t,
-                  query_created_at: b.created_at,
-                  payment_method: b.payment_method,
-                });
-              }
-            });
-          }
-        }
-
-        const tripsArr = Array.from(list.values()).sort(
-          (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
-        );
-        setTrips(tripsArr);
-
-        // Carregar parcelas e pagamentos para cada viagem
-        const tripIds = tripsArr.map((t) => t.id);
-        if (tripIds.length > 0) {
-          const { data: insts } = await supabase
-            .from("installments")
-            .select("*")
-            .in("trip_id", tripIds);
-          const byTrip: Record<string, InstallmentItem[]> = {};
-          (insts || []).forEach((i: any) => {
-            (byTrip[i.trip_id] ||= []).push(i);
-          });
-          setInstallmentsByTrip(byTrip);
-
-          const { data: pays } = await supabase
-            .from("payments")
-            .select("trip_id, amount_paid")
-            .in("trip_id", tripIds);
-          const sumByTrip: Record<string, number> = {};
-          (pays || []).forEach((p: any) => {
-            sumByTrip[p.trip_id] = (sumByTrip[p.trip_id] || 0) + Number(p.amount_paid);
-          });
-          setPaymentsByTrip(sumByTrip);
-        }
-
-        // Buscar chave PIX do administrador (para exibição em pagamento PIX)
-        const { data: admins } = await supabase
-          .from("user_roles")
-          .select("user_id")
-          .eq("role", "admin")
-          .limit(1);
-        if (admins?.[0]) {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("pix_key")
-            .eq("id", admins[0].user_id)
-            .single();
-          if (profile?.pix_key) setPixKey(profile.pix_key);
-        }
-      } finally {
-        setLoading(false);
       }
-    };
+
+      const tripsArr = Array.from(list.values()).sort(
+        (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+      );
+      setTrips(tripsArr);
+      setLoading(false);
+
+      // Carregar parcelas, pagamentos e PIX em paralelo (não bloqueia render)
+      const tripIds = tripsArr.map((t) => t.id);
+      const adminId = adminsRes.data?.[0]?.user_id;
+      const [instsRes, paysRes, pixRes] = await Promise.all([
+        tripIds.length
+          ? supabase.from("installments").select("*").in("trip_id", tripIds)
+          : Promise.resolve({ data: [] } as any),
+        tripIds.length
+          ? supabase.from("payments").select("trip_id, amount_paid").in("trip_id", tripIds)
+          : Promise.resolve({ data: [] } as any),
+        adminId
+          ? supabase.from("profiles").select("pix_key").eq("id", adminId).maybeSingle()
+          : Promise.resolve({ data: null } as any),
+      ]);
+
+      const byTrip: Record<string, InstallmentItem[]> = {};
+      (instsRes.data || []).forEach((i: any) => {
+        (byTrip[i.trip_id] ||= []).push(i);
+      });
+      setInstallmentsByTrip(byTrip);
+
+      const sumByTrip: Record<string, number> = {};
+      (paysRes.data || []).forEach((p: any) => {
+        sumByTrip[p.trip_id] = (sumByTrip[p.trip_id] || 0) + Number(p.amount_paid);
+      });
+      setPaymentsByTrip(sumByTrip);
+
+      const pix = (pixRes as any)?.data?.pix_key;
+      if (pix) setPixKey(pix);
+    } catch (e) {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (loading) {
@@ -254,6 +245,8 @@ export default function MyTrips() {
                     pixKey={pixKey}
                     pixDueDate={trip.start_date}
                     pixPaid={pixPaid}
+                    enableUpload
+                    onReceiptUploaded={load}
                   />
                 </div>
 

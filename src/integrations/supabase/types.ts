@@ -266,6 +266,8 @@ export type Database = {
           id: string
           installment_number: number
           payment_method: string
+          receipt_uploaded_at: string | null
+          receipt_url: string | null
           status: string
           trip_id: string
           user_id: string | null
@@ -277,6 +279,8 @@ export type Database = {
           id?: string
           installment_number: number
           payment_method?: string
+          receipt_uploaded_at?: string | null
+          receipt_url?: string | null
           status?: string
           trip_id: string
           user_id?: string | null
@@ -288,6 +292,8 @@ export type Database = {
           id?: string
           installment_number?: number
           payment_method?: string
+          receipt_uploaded_at?: string | null
+          receipt_url?: string | null
           status?: string
           trip_id?: string
           user_id?: string | null
