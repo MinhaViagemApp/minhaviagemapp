@@ -4,8 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TripProgressRoad } from "@/components/client/TripProgressRoad";
-import { PaymentTimeline, type InstallmentItem } from "@/components/client/PaymentTimeline";
-import { Plane, MapPin, Calendar, Loader2, Armchair, User, Tag } from "lucide-react";
+import { Plane, MapPin, Calendar, Loader2, Armchair, User, Tag, CreditCard, FileText, QrCode } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -27,21 +26,26 @@ interface ActiveTrip {
   query_status?: string | null;
 }
 
+const methodLabel = (m: string) =>
+  m === "pix" ? "Pix" : m === "cartao" ? "Cartão de Crédito" : "Boleto";
+
+const MethodIcon = ({ m }: { m: string }) => {
+  if (m === "pix") return <QrCode className="h-3.5 w-3.5" />;
+  if (m === "cartao") return <CreditCard className="h-3.5 w-3.5" />;
+  return <FileText className="h-3.5 w-3.5" />;
+};
+
 export default function MyTrips() {
   const { user } = useAuth();
   const [trips, setTrips] = useState<ActiveTrip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [installmentsByTrip, setInstallmentsByTrip] = useState<Record<string, InstallmentItem[]>>({});
-  const [paymentsByTrip, setPaymentsByTrip] = useState<Record<string, number>>({});
-  const [pixKey, setPixKey] = useState<string>("");
 
   const load = async () => {
     if (!user) return;
     try {
       const today = new Date().toISOString().split("T")[0];
 
-      // Disparar buscas em paralelo
-      const [ownRes, confirmedRes, clientRowRes, adminsRes] = await Promise.all([
+      const [ownRes, confirmedRes, clientRowRes] = await Promise.all([
         supabase.from("trips").select("*").eq("user_id", user.id).gte("end_date", today),
         supabase
           .from("trip_queries")
@@ -51,7 +55,6 @@ export default function MyTrips() {
         user.email
           ? supabase.from("clients").select("id").eq("email", user.email).maybeSingle()
           : Promise.resolve({ data: null } as any),
-        supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1),
       ]);
 
       const list = new Map<string, ActiveTrip>();
@@ -73,14 +76,12 @@ export default function MyTrips() {
       });
 
       const clientId = (clientRowRes as any)?.data?.id;
-      let bookings: any[] = [];
       if (clientId) {
         const { data } = await supabase
           .from("bookings")
           .select("created_at, payment_method, trips(*)")
           .eq("client_id", clientId);
-        bookings = data || [];
-        bookings.forEach((b: any) => {
+        (data || []).forEach((b: any) => {
           const t = Array.isArray(b.trips) ? b.trips[0] : b.trips;
           if (t && new Date(t.end_date) >= new Date(today) && !list.has(t.id)) {
             list.set(t.id, {
@@ -96,38 +97,7 @@ export default function MyTrips() {
         (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
       );
       setTrips(tripsArr);
-      setLoading(false);
-
-      // Carregar parcelas, pagamentos e PIX em paralelo (não bloqueia render)
-      const tripIds = tripsArr.map((t) => t.id);
-      const adminId = adminsRes.data?.[0]?.user_id;
-      const [instsRes, paysRes, pixRes] = await Promise.all([
-        tripIds.length
-          ? supabase.from("installments").select("*").in("trip_id", tripIds)
-          : Promise.resolve({ data: [] } as any),
-        tripIds.length
-          ? supabase.from("payments").select("trip_id, amount_paid").in("trip_id", tripIds)
-          : Promise.resolve({ data: [] } as any),
-        adminId
-          ? supabase.from("profiles").select("pix_key").eq("id", adminId).maybeSingle()
-          : Promise.resolve({ data: null } as any),
-      ]);
-
-      const byTrip: Record<string, InstallmentItem[]> = {};
-      (instsRes.data || []).forEach((i: any) => {
-        (byTrip[i.trip_id] ||= []).push(i);
-      });
-      setInstallmentsByTrip(byTrip);
-
-      const sumByTrip: Record<string, number> = {};
-      (paysRes.data || []).forEach((p: any) => {
-        sumByTrip[p.trip_id] = (sumByTrip[p.trip_id] || 0) + Number(p.amount_paid);
-      });
-      setPaymentsByTrip(sumByTrip);
-
-      const pix = (pixRes as any)?.data?.pix_key;
-      if (pix) setPixKey(pix);
-    } catch (e) {
+    } finally {
       setLoading(false);
     }
   };
@@ -171,9 +141,8 @@ export default function MyTrips() {
       <div className="grid grid-cols-1 gap-5">
         {trips.map((trip) => {
           const startBase = trip.query_created_at || trip.created_at;
-          const insts = installmentsByTrip[trip.id] || [];
-          const paid = paymentsByTrip[trip.id] || 0;
-          const pixPaid = trip.payment_method === "pix" ? paid >= Number(trip.total_price) : false;
+          const method = trip.payment_method || "pix";
+          const installmentsCount = trip.installments || 1;
           return (
             <Card key={trip.id} className="glass-strong border-emerald-500/30 animate-fade-in">
               <CardHeader className="pb-3">
@@ -202,7 +171,7 @@ export default function MyTrips() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Detalhes da viagem */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="bg-secondary/40 rounded-lg p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                       <Armchair className="h-3 w-3" /> Poltrona
@@ -217,6 +186,17 @@ export default function MyTrips() {
                     </p>
                     <p className="text-sm font-black text-foreground truncate">
                       {trip.passenger_name || "—"}
+                    </p>
+                  </div>
+                  <div className="bg-secondary/40 rounded-lg p-3">
+                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <MethodIcon m={method} /> Pagamento
+                    </p>
+                    <p className="text-sm font-black text-foreground">
+                      {methodLabel(method)}
+                      {method !== "pix" && installmentsCount > 1 && (
+                        <span className="text-xs font-bold text-muted-foreground"> • {installmentsCount}x</span>
+                      )}
                     </p>
                   </div>
                   <div className="bg-secondary/40 rounded-lg p-3">
@@ -235,20 +215,6 @@ export default function MyTrips() {
                     Cupom aplicado: <span className="font-mono font-bold">{trip.coupon_code}</span>
                   </div>
                 )}
-
-                {/* Pagamento — Timeline */}
-                <div className="border-t border-border pt-5">
-                  <PaymentTimeline
-                    paymentMethod={trip.payment_method || "pix"}
-                    installments={insts}
-                    totalPrice={Number(trip.total_price)}
-                    pixKey={pixKey}
-                    pixDueDate={trip.start_date}
-                    pixPaid={pixPaid}
-                    enableUpload
-                    onReceiptUploaded={load}
-                  />
-                </div>
 
                 {/* Barra de progresso ônibus na estrada */}
                 <div className="border-t border-border pt-5">
