@@ -206,7 +206,7 @@ export function PaymentTimeline({
   // Boleto / Cartão - timeline de parcelas
   const isCard = paymentMethod === "cartao";
   const Icon = isCard ? CreditCard : FileText;
-  const title = isCard ? "Pagamento via Cartão de Crédito" : "Pagamento via Boleto Bancário";
+  const title = isCard ? "Pagamento via Cartão de Crédito" : "Pagamento via Boleto";
 
   return (
     <div className="space-y-4">
