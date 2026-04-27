@@ -217,6 +217,41 @@ export default function ClientDashboard() {
           setAdminPhone(profile.business_phone || "");
         }
         }
+
+        // Verifica bookings confirmadas pendentes de notificação (caso usuário não estivesse online)
+        if (user.email) {
+          const { data: client } = await supabase
+            .from("clients")
+            .select("id")
+            .eq("email", user.email)
+            .maybeSingle();
+          if (client?.id) {
+            const { data: pendingBookings } = await (supabase as any)
+              .from("bookings")
+              .select("id, trip_id, status, notification_shown")
+              .eq("client_id", client.id)
+              .eq("status", "confirmada")
+              .eq("notification_shown", false);
+            for (const b of (pendingBookings || []) as any[]) {
+              if (celebratedRef.current.has(b.id)) continue;
+              celebratedRef.current.add(b.id);
+              try { localStorage.setItem(`approval-shown-${b.id}`, "1"); } catch {}
+              const { data: t } = await supabase
+                .from("trips")
+                .select("destination")
+                .eq("id", b.trip_id)
+                .maybeSingle();
+              setTimeout(() => {
+                celebrateApproval();
+                setApprovalModal({ open: true, destination: t?.destination || "sua próxima viagem" });
+              }, 600);
+              await (supabase as any)
+                .from("bookings")
+                .update({ notification_shown: true })
+                .eq("id", b.id);
+            }
+          }
+        }
       } catch (err) {
         console.error("Erro crítico ao carregar Dashboard:", err);
       }
