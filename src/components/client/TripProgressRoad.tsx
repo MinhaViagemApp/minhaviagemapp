@@ -89,14 +89,13 @@ export function TripProgressRoad({ createdAt, startDate, label }: TripProgressRo
 
         {/* Estrada (asfalto) */}
         <div className="relative h-10 w-full rounded-xl bg-secondary border border-border overflow-hidden shadow-inner">
-          {/* Faixa central tracejada animada */}
+          {/* Faixa central tracejada (estática) */}
           <div
             className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 opacity-90"
             style={{
               backgroundImage:
                 "repeating-linear-gradient(90deg, hsl(48 96% 60%) 0 18px, transparent 18px 36px)",
               backgroundSize: "36px 100%",
-              animation: "road-stripes 1.4s linear infinite",
             }}
           />
           {/* Trilha já percorrida (sutil overlay colorido) */}
