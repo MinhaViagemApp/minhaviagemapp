@@ -25,6 +25,102 @@ interface PaymentTimelineProps {
   pixKey?: string;
   pixDueDate?: string | null;
   pixPaid?: boolean;
+  enableUpload?: boolean;
+  onReceiptUploaded?: () => void;
+}
+
+function ReceiptUpload({
+  installmentId,
+  receiptUrl,
+  onUploaded,
+}: {
+  installmentId: string;
+  receiptUrl?: string | null;
+  onUploaded?: () => void;
+}) {
+  const { user } = useAuth();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const openReceipt = async () => {
+    if (!receiptUrl) return;
+    const { data } = await supabase.storage
+      .from("payment-receipts")
+      .createSignedUrl(receiptUrl, 60 * 10);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  };
+
+  const handleUpload = async (file: File) => {
+    if (!user) return;
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() || "bin";
+      const path = `${user.id}/${installmentId}-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("payment-receipts")
+        .upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+
+      const { error: dbErr } = await supabase
+        .from("installments")
+        .update({
+          receipt_url: path,
+          receipt_uploaded_at: new Date().toISOString(),
+        } as any)
+        .eq("id", installmentId);
+      if (dbErr) throw dbErr;
+
+      toast.success("Comprovante enviado com sucesso!");
+      onUploaded?.();
+    } catch (e: any) {
+      toast.error(e.message || "Falha ao enviar comprovante");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2 mt-2 flex-wrap">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleUpload(f);
+          e.target.value = "";
+        }}
+      />
+      {receiptUrl ? (
+        <>
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={openReceipt}>
+            <FileCheck2 className="h-3 w-3 mr-1 text-emerald-400" /> Ver comprovante
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            disabled={uploading}
+            onClick={() => inputRef.current?.click()}
+          >
+            <Upload className="h-3 w-3 mr-1" /> Substituir
+          </Button>
+        </>
+      ) : (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 text-xs"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+        >
+          <Upload className="h-3 w-3 mr-1" />
+          {uploading ? "Enviando..." : "Anexar comprovante"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 function StatusBadge({ status }: { status: string }) {
