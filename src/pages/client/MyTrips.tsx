@@ -245,6 +245,8 @@ export default function MyTrips() {
                     pixKey={pixKey}
                     pixDueDate={trip.start_date}
                     pixPaid={pixPaid}
+                    enableUpload
+                    onReceiptUploaded={load}
                   />
                 </div>
 
