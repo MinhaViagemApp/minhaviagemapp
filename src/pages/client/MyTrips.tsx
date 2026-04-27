@@ -51,7 +51,7 @@ export default function MyTrips() {
           .gte("end_date", today);
         (own || []).forEach((t: any) => list.set(t.id, t));
 
-        // Viagens via pré-reserva confirmada
+        // Viagens via pré-reserva confirmada (trip_queries)
         const { data: confirmed } = await supabase
           .from("trip_queries")
           .select("created_at, seat_number, payment_method, installments, coupon_code, passenger_name, status, trips(*)")
@@ -72,6 +72,31 @@ export default function MyTrips() {
             });
           }
         });
+
+        // Viagens via bookings (independente do status), buscando client_id pelo email
+        if (user.email) {
+          const { data: clientRow } = await supabase
+            .from("clients")
+            .select("id")
+            .eq("email", user.email)
+            .maybeSingle();
+          if (clientRow?.id) {
+            const { data: bookings } = await supabase
+              .from("bookings")
+              .select("created_at, payment_method, trips(*)")
+              .eq("client_id", clientRow.id);
+            (bookings || []).forEach((b: any) => {
+              const t = Array.isArray(b.trips) ? b.trips[0] : b.trips;
+              if (t && new Date(t.end_date) >= new Date(today) && !list.has(t.id)) {
+                list.set(t.id, {
+                  ...t,
+                  query_created_at: b.created_at,
+                  payment_method: b.payment_method,
+                });
+              }
+            });
+          }
+        }
 
         const tripsArr = Array.from(list.values()).sort(
           (a, b) => new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
