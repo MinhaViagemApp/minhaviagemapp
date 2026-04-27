@@ -261,8 +261,24 @@ export default function ClientDashboard() {
 
   useEffect(() => {
     if (!user) return;
-    const channel = supabase
-      .channel(`client-approval-${user.id}`)
+
+    const triggerCelebration = async (tripId: string, sourceId: string) => {
+      if (celebratedRef.current.has(sourceId)) return;
+      celebratedRef.current.add(sourceId);
+      try { localStorage.setItem(`approval-shown-${sourceId}`, "1"); } catch {}
+      celebrateApproval();
+      const { data: t } = await supabase
+        .from("trips")
+        .select("destination")
+        .eq("id", tripId)
+        .maybeSingle();
+      setApprovalModal({ open: true, destination: t?.destination || "sua próxima viagem" });
+      await refetchActiveTrip();
+    };
+
+    // Canal 1: pré-reservas (trip_queries) — fluxo legado/atual
+    const queriesChannel = supabase
+      .channel(`client-approval-queries-${user.id}`)
       .on(
         "postgres_changes",
         {
@@ -273,25 +289,55 @@ export default function ClientDashboard() {
         },
         async (payload: any) => {
           const newRow = payload.new;
-          if (newRow?.status === "confirmada" && !celebratedRef.current.has(newRow.id)) {
-            celebratedRef.current.add(newRow.id);
-            try { localStorage.setItem(`approval-shown-${newRow.id}`, "1"); } catch {}
-            celebrateApproval();
-            // Buscar destino para mostrar no modal
-            const { data: t } = await supabase
-              .from("trips")
-              .select("destination")
-              .eq("id", newRow.trip_id)
-              .maybeSingle();
-            setApprovalModal({ open: true, destination: t?.destination || "sua próxima viagem" });
-            // Atualiza estado da viagem ativa sem recarregar a página
-            await refetchActiveTrip();
+          if (newRow?.status === "confirmada") {
+            await triggerCelebration(newRow.trip_id, newRow.id);
           }
         }
       )
       .subscribe();
+
+    // Canal 2: bookings — escuta confirmação direta na tabela bookings
+    // Como bookings.client_id referencia clients.id (não auth.uid), resolvemos o client_id pelo email
+    let bookingsChannel: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const email = user.email;
+      if (!email) return;
+      const { data: client } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("email", email)
+        .maybeSingle();
+      const clientId = client?.id;
+      if (!clientId) return;
+
+      bookingsChannel = supabase
+        .channel(`client-approval-bookings-${clientId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "bookings",
+            filter: `client_id=eq.${clientId}`,
+          },
+          async (payload: any) => {
+            const newRow: any = payload.new;
+            if (newRow?.status === "confirmada" && !newRow?.notification_shown) {
+              await triggerCelebration(newRow.trip_id, newRow.id);
+              // Marca notification_shown=true para não disparar de novo
+              await (supabase as any)
+                .from("bookings")
+                .update({ notification_shown: true })
+                .eq("id", newRow.id);
+            }
+          }
+        )
+        .subscribe();
+    })();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(queriesChannel);
+      if (bookingsChannel) supabase.removeChannel(bookingsChannel);
     };
   }, [user]);
 
