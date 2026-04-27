@@ -145,6 +145,8 @@ export function PaymentTimeline({
   pixKey,
   pixDueDate,
   pixPaid,
+  enableUpload = false,
+  onReceiptUploaded,
 }: PaymentTimelineProps) {
   const today = startOfDay(new Date());
   const sorted = [...installments].sort((a, b) => a.installment_number - b.installment_number);
