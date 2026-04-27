@@ -143,12 +143,6 @@ export function TripProgressRoad({ createdAt, startDate, label }: TripProgressRo
         </span>
       </div>
 
-      <style>{`
-        @keyframes road-stripes {
-          0% { background-position-x: 0; }
-          100% { background-position-x: -36px; }
-        }
-      `}</style>
     </div>
   );
 }
