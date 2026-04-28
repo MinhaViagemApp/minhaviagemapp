@@ -126,7 +126,7 @@ export default function AdminClients() {
     ]);
 
     // Parcelas adicionais para bookings sem user_id (admin-created antes do signup)
-    const bookingTripIds = Array.from(new Set((bookingsData || []).map((b: any) => b.trip_id)));
+    const bookingTripIds: string[] = Array.from(new Set((bookingsData || []).map((b: any) => b.trip_id as string)));
     const { data: extraInsts } = bookingTripIds.length
       ? await supabase.from("installments")
           .select("id, trip_id, user_id, amount, status, due_date, installment_number, payment_method")
