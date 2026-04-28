@@ -61,108 +61,160 @@ export default function AdminClients() {
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
 
   const fetchClients = async () => {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, name, email, phone, created_at")
-      .order("created_at", { ascending: false });
-    if (!profiles) { setClients([]); return; }
+    // Carrega profiles (usuários que já fizeram signup) e clients (cadastrados pelo admin)
+    const [profilesRes, clientsRes] = await Promise.all([
+      supabase.from("profiles").select("id, name, email, phone, created_at").order("created_at", { ascending: false }),
+      supabase.from("clients").select("id, name, email, phone, created_at").order("created_at", { ascending: false }),
+    ]);
+    const profiles = profilesRes.data || [];
+    const clientRows = clientsRes.data || [];
 
     const userIds = profiles.map(p => p.id);
-
     const { data: rolesData } = userIds.length
-      ? await supabase
-          .from("user_roles")
-          .select("user_id, role")
-          .in("user_id", userIds)
+      ? await supabase.from("user_roles").select("user_id, role").in("user_id", userIds)
       : { data: [] as { user_id: string; role: string }[] };
 
     const adminIds = new Set(
-      (rolesData || [])
-        .filter((role) => role.role === "admin")
-        .map((role) => role.user_id)
+      (rolesData || []).filter((r) => r.role === "admin").map((r) => r.user_id)
     );
 
-    const visibleProfiles = profiles.filter((profile) => !adminIds.has(profile.id) && profile.id !== user?.id);
-    const visibleUserIds = visibleProfiles.map((profile) => profile.id);
+    const visibleProfiles = profiles.filter((p) => !adminIds.has(p.id) && p.id !== user?.id);
 
-    if (visibleUserIds.length === 0) {
-      setClients([]);
-      return;
-    }
-
-    const [{ data: installmentsData }, { data: queriesData }] = await Promise.all([
-      supabase.from("installments")
-        .select("id, trip_id, user_id, amount, status, due_date, installment_number, payment_method")
-        .in("user_id", visibleUserIds)
-        .order("installment_number", { ascending: true }),
-      supabase.from("trip_queries")
-        .select("trip_id, user_id, payment_method, seat_number, status, created_at")
-        .in("user_id", visibleUserIds)
-        .order("created_at", { ascending: false }),
-    ]);
-
-    const tripIds = Array.from(new Set([
-      ...(installmentsData || []).map(i => i.trip_id),
-      ...(queriesData || []).map(q => q.trip_id),
-    ]));
-
-    const { data: tripsData } = tripIds.length
-      ? await supabase
-          .from("trips")
-          .select("id, destination, start_date")
-          .in("id", tripIds)
-      : { data: [] as any[] };
-
-    const now = new Date();
-    const tripMap = new Map((tripsData || []).map(t => [t.id, t]));
-    const latestQueryMap = new Map<string, any>();
-
-    (queriesData || []).forEach((query: any) => {
-      const key = `${query.user_id}-${query.trip_id}`;
-      if (!latestQueryMap.has(key)) {
-        latestQueryMap.set(key, query);
+    // Mescla por e-mail; profile (auth user) tem prioridade
+    type Merged = { id: string; name: string | null; email: string; phone: string | null; created_at: string; client_id?: string | null; has_profile: boolean };
+    const byEmail = new Map<string, Merged>();
+    visibleProfiles.forEach((p) => {
+      if (!p.email) return;
+      byEmail.set(p.email.toLowerCase(), { ...p, has_profile: true });
+    });
+    clientRows.forEach((c) => {
+      const key = (c.email || "").toLowerCase();
+      if (!key) return;
+      const existing = byEmail.get(key);
+      if (existing) {
+        existing.client_id = c.id;
+        existing.phone = existing.phone || c.phone;
+      } else {
+        byEmail.set(key, { ...c, client_id: c.id, has_profile: false });
       }
     });
 
-    const clientsBuilt: Client[] = visibleProfiles.map(p => {
-      const userInstallments = (installmentsData || []).filter(i => i.user_id === p.id);
-      const userQueries = (queriesData || []).filter(q => q.user_id === p.id);
-      const userTripIds = Array.from(new Set([
-        ...userInstallments.map(i => i.trip_id),
-        ...userQueries.map(q => q.trip_id),
+    const merged = Array.from(byEmail.values());
+    if (merged.length === 0) { setClients([]); return; }
+
+    const profileUserIds = merged.filter(m => m.has_profile).map(m => m.id);
+    const clientIds = merged.map(m => m.client_id).filter(Boolean) as string[];
+
+    const [{ data: instByUser }, { data: queriesData }, { data: bookingsData }] = await Promise.all([
+      profileUserIds.length
+        ? supabase.from("installments")
+            .select("id, trip_id, user_id, amount, status, due_date, installment_number, payment_method")
+            .in("user_id", profileUserIds)
+            .order("installment_number", { ascending: true })
+        : Promise.resolve({ data: [] as any[] } as any),
+      profileUserIds.length
+        ? supabase.from("trip_queries")
+            .select("trip_id, user_id, payment_method, seat_number, status, created_at")
+            .in("user_id", profileUserIds)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] } as any),
+      clientIds.length
+        ? supabase.from("bookings")
+            .select("trip_id, client_id, payment_method, status, created_at")
+            .in("client_id", clientIds)
+        : Promise.resolve({ data: [] as any[] } as any),
+    ]);
+
+    // Parcelas adicionais para bookings sem user_id (admin-created antes do signup)
+    const bookingTripIds: string[] = Array.from(new Set((bookingsData || []).map((b: any) => b.trip_id as string)));
+    const { data: extraInsts } = bookingTripIds.length
+      ? await supabase.from("installments")
+          .select("id, trip_id, user_id, amount, status, due_date, installment_number, payment_method")
+          .in("trip_id", bookingTripIds)
+          .is("user_id", null)
+      : { data: [] as any[] };
+
+    // Bus seats das reservas (para mostrar a poltrona)
+    const { data: seatsData } = (clientIds.length && bookingTripIds.length)
+      ? await supabase.from("bus_seats")
+          .select("trip_id, seat_number, client_id")
+          .in("trip_id", bookingTripIds)
+          .in("client_id", clientIds)
+      : { data: [] as any[] };
+
+    const allInstallments = [...(instByUser || []), ...(extraInsts || [])];
+    const tripIds = Array.from(new Set([
+      ...allInstallments.map(i => i.trip_id),
+      ...((queriesData || []).map((q: any) => q.trip_id)),
+      ...bookingTripIds,
+    ]));
+
+    const { data: tripsData } = tripIds.length
+      ? await supabase.from("trips").select("id, destination, start_date").in("id", tripIds)
+      : { data: [] as any[] };
+
+    const now = new Date();
+    const tripMap = new Map((tripsData || []).map((t: any) => [t.id, t]));
+
+    const clientsBuilt: Client[] = merged.map((m) => {
+      // Parcelas: por user_id (se profile) + por trip_id (bookings sem user_id)
+      const userInsts = m.has_profile
+        ? allInstallments.filter((i: any) => i.user_id === m.id)
+        : [];
+      const myBookings = m.client_id
+        ? (bookingsData || []).filter((b: any) => b.client_id === m.client_id)
+        : [];
+      const myBookingTripIds = myBookings.map((b: any) => b.trip_id);
+      const bookingInsts = (extraInsts || []).filter((i: any) => myBookingTripIds.includes(i.trip_id));
+      const allMine = [...userInsts, ...bookingInsts];
+
+      const userQueries = m.has_profile
+        ? (queriesData || []).filter((q: any) => q.user_id === m.id)
+        : [];
+
+      const tripIdsMine = Array.from(new Set([
+        ...allMine.map((i) => i.trip_id),
+        ...userQueries.map((q: any) => q.trip_id),
+        ...myBookingTripIds,
       ]));
 
-      const activeInstallments = userInstallments.filter(i => i.status !== "cancelado");
-      const totalDue = activeInstallments.reduce((s, i) => s + Number(i.amount), 0);
-      const totalPaid = activeInstallments.filter(i => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
-      const hasLatePayment = activeInstallments.some(i => {
+      const active = allMine.filter((i) => i.status !== "cancelado");
+      const totalDue = active.reduce((s, i) => s + Number(i.amount), 0);
+      const totalPaid = active.filter((i) => i.status === "pago").reduce((s, i) => s + Number(i.amount), 0);
+      const hasLatePayment = active.some((i) => {
         if (i.status === "pago" || i.status === "cancelado") return false;
         if (i.status === "atrasado") return true;
         const d = new Date(i.due_date);
         return d < now && d.toDateString() !== now.toDateString();
       });
 
-      const trips: TripInfo[] = userTripIds.map(tripId => {
+      const trips: TripInfo[] = tripIdsMine.map((tripId) => {
         const trip = tripMap.get(tripId);
-        const query = latestQueryMap.get(`${p.id}-${tripId}`);
-        const insts = userInstallments.filter(i => i.trip_id === tripId);
-
+        const query = userQueries.find((q: any) => q.trip_id === tripId);
+        const booking = myBookings.find((b: any) => b.trip_id === tripId);
+        const insts = allMine.filter((i) => i.trip_id === tripId);
+        const seat = (seatsData || []).find((s: any) => s.trip_id === tripId && s.client_id === m.client_id);
+        const seatNumber = query?.seat_number ?? seat?.seat_number ?? null;
         return {
           id: tripId,
           destination: trip?.destination || "Viagem sem nome",
           start_date: trip?.start_date || "",
-          seat_number: query?.seat_number ? String(query.seat_number).padStart(2, "0") : null,
-          payment_method: insts[0]?.payment_method || query?.payment_method || null,
+          seat_number: seatNumber ? String(seatNumber).padStart(2, "0") : null,
+          payment_method: insts[0]?.payment_method || booking?.payment_method || query?.payment_method || null,
           installments: insts,
         };
       });
 
       return {
-        ...p,
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        phone: m.phone,
+        created_at: m.created_at,
         totalDue,
         totalPaid,
         hasLatePayment,
-        tripDestinations: trips.map(t => t.destination),
+        tripDestinations: trips.map((t) => t.destination),
         trips,
       };
     });

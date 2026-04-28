@@ -141,53 +141,109 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
 
     setIsSaving(true);
     try {
-      // 1. Criar ou buscar perfil
+      const normalizedEmail = form.email.trim().toLowerCase();
+
+      // 1. Resolver company_id do admin logado
+      const { data: authData } = await supabase.auth.getUser();
+      const adminUserId = authData?.user?.id;
+      if (!adminUserId) throw new Error("Sessão inválida. Faça login novamente.");
+
+      const { data: companyRow } = await supabase
+        .from("user_companies")
+        .select("company_id")
+        .eq("user_id", adminUserId)
+        .maybeSingle();
+      const companyId = companyRow?.company_id;
+      if (!companyId) throw new Error("Sua conta não está vinculada a uma agência.");
+
+      // 2. Criar/atualizar registro em CLIENTS (admin tem permissão via RLS)
+      // NÃO inserimos em profiles aqui — o perfil será criado automaticamente pelo
+      // trigger handle_new_user() quando o cliente fizer signup com este e-mail.
+      const { data: existingClient } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("email", normalizedEmail)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      let clientId = existingClient?.id as string | undefined;
+
+      if (!clientId) {
+        const { data: insertedClient, error: clientErr } = await supabase
+          .from("clients")
+          .insert({
+            name: form.name,
+            email: normalizedEmail,
+            phone: form.phone || null,
+            company_id: companyId,
+          })
+          .select("id")
+          .single();
+        if (clientErr) throw clientErr;
+        clientId = insertedClient.id;
+      } else {
+        await supabase.from("clients").update({
+          name: form.name,
+          phone: form.phone || null,
+        }).eq("id", clientId);
+      }
+
+      // 3. Se já existe um profile com este e-mail (cliente já logou alguma vez),
+      // atualizamos os campos extras (cpf/endereço) — sem violar RLS pois apenas
+      // o próprio usuário pode atualizar profiles. Se não existir, ignoramos: o
+      // trigger handle_new_user criará na primeira sessão.
       const { data: existingProfile } = await supabase
         .from("profiles")
         .select("id")
-        .eq("email", form.email)
+        .eq("email", normalizedEmail)
         .maybeSingle();
+      const existingUserId = existingProfile?.id as string | undefined;
 
-      let userId = existingProfile?.id;
-
-      if (!userId) {
-        userId = crypto.randomUUID();
-        const { error: profileError } = await supabase.from("profiles").insert({
-          id: userId,
-          name: form.name,
-          email: form.email,
-          cpf: form.cpf || null,
-          phone: form.phone,
-          address: form.address || null
-        });
-        if (profileError) throw profileError;
-      } else {
-        await supabase.from("profiles").update({
-          name: form.name,
-          cpf: form.cpf || null,
-          phone: form.phone,
-          address: form.address || null
-        }).eq("id", userId);
-      }
-
-      // 2. Reservar TODAS as poltronas selecionadas
+      // 4. Reservar TODAS as poltronas selecionadas usando RPC (SECURITY DEFINER)
       for (const seatNum of selectedSeats) {
         const targetSeat = saleSeatData.find(s => s.number === seatNum);
         if (!targetSeat) throw new Error(`Poltrona ${seatNum} não encontrada.`);
-        await mcpService.reserveSeat(form.trip_id, seatNum, userId, form.name);
+        const { error: seatErr } = await (supabase as any).rpc("reserve_bus_seat", {
+          _trip_id: form.trip_id,
+          _seat_number: parseInt(seatNum, 10),
+          _client_id: clientId,
+          _passenger_name: form.name,
+        });
+        if (seatErr) throw seatErr;
       }
 
-      await supabase.from("trip_seats").insert(selectedSeats.map(seatNum => ({
-        trip_id: form.trip_id,
-        user_id: userId,
-        seat_number: seatNum,
-        status: "reserved"
-      })));
+      // 5. Criar BOOKING confirmado (uma reserva por viagem)
+      const { data: existingBooking } = await supabase
+        .from("bookings")
+        .select("id")
+        .eq("client_id", clientId)
+        .eq("trip_id", form.trip_id)
+        .maybeSingle();
 
-      // 3. Gerar Parcelas com base no preço × qtd poltronas
+      if (!existingBooking) {
+        const { error: bookErr } = await supabase.from("bookings").insert({
+          client_id: clientId,
+          trip_id: form.trip_id,
+          payment_method: form.payment_method,
+          total_value: totalPrice,
+          payment_status: "pendente",
+          status: "confirmada",
+          notification_shown: false,
+        } as any);
+        if (bookErr) throw bookErr;
+      } else {
+        await supabase.from("bookings").update({
+          payment_method: form.payment_method,
+          total_value: totalPrice,
+          status: "confirmada",
+          notification_shown: false,
+        } as any).eq("id", existingBooking.id);
+      }
+
+      // 6. Gerar Parcelas (user_id pode ser null; será populável no signup)
       if (selectedTrip) {
         const qty = parseInt(form.installments) || 1;
-        const perAmount = totalPrice / qty; // já considera qtd poltronas
+        const perAmount = totalPrice / qty;
         const today = new Date();
 
         const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
@@ -195,17 +251,27 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
           dueDate.setMonth(today.getMonth() + i);
           return {
             trip_id: selectedTrip.id,
-            user_id: userId,
+            user_id: existingUserId ?? null,
             installment_number: i + 1,
             amount: perAmount,
             status: "pendente",
             payment_method: form.payment_method,
-            due_date: dueDate.toISOString()
+            due_date: dueDate.toISOString().split("T")[0],
           };
         });
 
         const { error: instError } = await supabase.from("installments").insert(installmentsToInsert);
         if (instError) throw instError;
+      }
+
+      // 7. Notificação (somente se já existir auth.user — caso contrário, será
+      // disparada via realtime/fallback no Dashboard ao logar pela primeira vez)
+      if (existingUserId) {
+        await supabase.from("notifications").insert({
+          user_id: existingUserId,
+          title: "Reserva confirmada!",
+          message: `Sua reserva para ${selectedTrip?.destination ?? "a viagem"} foi confirmada.`,
+        });
       }
 
       toast.success(`✅ ${selectedSeats.length} poltrona(s) reservada(s) com sucesso!`);

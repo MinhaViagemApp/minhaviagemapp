@@ -77,17 +77,39 @@ export default function MyTrips() {
 
       const clientId = (clientRowRes as any)?.data?.id;
       if (clientId) {
-        const { data } = await supabase
+        const { data: bookingsData } = await supabase
           .from("bookings")
-          .select("created_at, payment_method, trips(*)")
+          .select("created_at, payment_method, trip_id, trips(*)")
           .eq("client_id", clientId);
-        (data || []).forEach((b: any) => {
+
+        const bookingTripIds = (bookingsData || []).map((b: any) => b.trip_id);
+        const { data: seatsData } = bookingTripIds.length
+          ? await supabase
+              .from("bus_seats")
+              .select("trip_id, seat_number")
+              .eq("client_id", clientId)
+              .in("trip_id", bookingTripIds)
+          : { data: [] as any[] };
+
+        // Buscar parcelas para inferir installments count e payment_method
+        const { data: instsData } = bookingTripIds.length
+          ? await supabase
+              .from("installments")
+              .select("trip_id, installment_number, payment_method")
+              .in("trip_id", bookingTripIds)
+          : { data: [] as any[] };
+
+        (bookingsData || []).forEach((b: any) => {
           const t = Array.isArray(b.trips) ? b.trips[0] : b.trips;
           if (t && new Date(t.end_date) >= new Date(today) && !list.has(t.id)) {
+            const seat = (seatsData || []).find((s: any) => s.trip_id === t.id);
+            const tripInsts = (instsData || []).filter((i: any) => i.trip_id === t.id);
             list.set(t.id, {
               ...t,
               query_created_at: b.created_at,
-              payment_method: b.payment_method,
+              payment_method: b.payment_method || tripInsts[0]?.payment_method || "pix",
+              seat_number: seat?.seat_number ?? null,
+              installments: tripInsts.length || null,
             });
           }
         });
