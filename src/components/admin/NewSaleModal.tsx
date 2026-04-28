@@ -240,28 +240,52 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         } as any).eq("id", existingBooking.id);
       }
 
-      // 6. Gerar Parcelas (user_id pode ser null; será populável no signup)
+      // 6. Gerar Parcelas — APENAS se ainda não existirem para esta trip+cliente
+      // (evita duplicação ao reabrir o modal ou em duplo clique)
       if (selectedTrip) {
         const qty = parseInt(form.installments) || 1;
         const perAmount = totalPrice / qty;
         const today = new Date();
 
-        const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
-          const dueDate = new Date(today);
-          dueDate.setMonth(today.getMonth() + i);
-          return {
-            trip_id: selectedTrip.id,
-            user_id: existingUserId ?? null,
-            installment_number: i + 1,
-            amount: perAmount,
-            status: "pendente",
-            payment_method: form.payment_method,
-            due_date: dueDate.toISOString().split("T")[0],
-          };
-        });
+        // Checa parcelas existentes vinculadas: por user_id (se já houver perfil)
+        // ou via bookings do cliente para esta viagem
+        const { data: existingInsts } = await supabase
+          .from("installments")
+          .select("id, user_id")
+          .eq("trip_id", selectedTrip.id);
 
-        const { error: instError } = await supabase.from("installments").insert(installmentsToInsert);
-        if (instError) throw instError;
+        const alreadyHasInstallments = (existingInsts || []).some((i: any) =>
+          existingUserId ? i.user_id === existingUserId : true
+        ) && (existingInsts || []).length >= qty;
+
+        if (!alreadyHasInstallments) {
+          // Limpa parcelas antigas órfãs deste mesmo user_id (se houver) para
+          // evitar mistura de planos antigos com o atual
+          if (existingUserId && (existingInsts || []).length > 0) {
+            await supabase
+              .from("installments")
+              .delete()
+              .eq("trip_id", selectedTrip.id)
+              .eq("user_id", existingUserId);
+          }
+
+          const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
+            const dueDate = new Date(today);
+            dueDate.setMonth(today.getMonth() + i);
+            return {
+              trip_id: selectedTrip.id,
+              user_id: existingUserId ?? null,
+              installment_number: i + 1,
+              amount: perAmount,
+              status: "pendente",
+              payment_method: form.payment_method,
+              due_date: dueDate.toISOString().split("T")[0],
+            };
+          });
+
+          const { error: instError } = await supabase.from("installments").insert(installmentsToInsert);
+          if (instError) throw instError;
+        }
       }
 
       // 7. Notificação (somente se já existir auth.user — caso contrário, será
@@ -467,7 +491,7 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         <div className="flex justify-end gap-2 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSave} disabled={isSaving || selectedSeats.length === 0} className="gradient-accent px-8">
-            {isSaving ? "Salvando..." : `Confirmar ${selectedSeats.length > 0 ? `(${selectedSeats.length} poltrona${selectedSeats.length > 1 ? 's' : ''})` : ''}`}
+            {isSaving ? "Salvando..." : `Finalizar Reserva${selectedSeats.length > 0 ? ` (${selectedSeats.length} poltrona${selectedSeats.length > 1 ? 's' : ''})` : ''}`}
           </Button>
         </div>
       </DialogContent>

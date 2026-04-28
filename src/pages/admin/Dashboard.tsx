@@ -643,7 +643,7 @@ export default function AdminDashboard() {
                </div>
             </div>
             <Button onClick={saveSeatAssignment} disabled={!selectedClientForSeat && !manualNameForSeat} className="w-full gradient-accent h-12 text-md">
-              Confirmar Reserva
+              Finalizar Reserva
             </Button>
           </div>
         </DialogContent>
