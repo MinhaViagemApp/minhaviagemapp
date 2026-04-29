@@ -13,9 +13,10 @@ interface BusSeatPickerProps {
   onSeatClick?: (seatNumber: string) => void;
   compact?: boolean; // para uso no modal de Nova Venda (menor)
   hideOccupantName?: boolean; // ocultar nome do passageiro (visão do cliente)
+  allowReleaseOccupied?: boolean; // permite clicar em ocupadas (admin)
 }
 
-export const BusSeatPicker: React.FC<BusSeatPickerProps> = ({ seats, onSeatClick, compact = false, hideOccupantName = false }) => {
+export const BusSeatPicker: React.FC<BusSeatPickerProps> = ({ seats, onSeatClick, compact = false, hideOccupantName = false, allowReleaseOccupied = false }) => {
   const getSeat = (num: string) => {
     const found = seats.find((s) => s.number === num);
     return found || { number: num, status: "available" as const, occupantName: undefined, floor: "superior" as const };
