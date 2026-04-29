@@ -77,17 +77,34 @@ export default function ClientPayments() {
 
       const [tripsRes, instsRes, paysRes, pixRes] = await Promise.all([
         supabase.from("trips").select("id, destination, start_date, end_date, total_price").in("id", tripIds),
-        supabase.from("installments").select("*").in("trip_id", tripIds),
+        // Busca parcelas e filtra: do próprio user_id OU sem user_id (criadas pelo admin antes do signup)
+        supabase
+          .from("installments")
+          .select("*")
+          .in("trip_id", tripIds)
+          .or(`user_id.eq.${user.id},user_id.is.null`),
         supabase.from("payments").select("trip_id, amount_paid").in("trip_id", tripIds),
         adminsRes.data?.[0]?.user_id
           ? supabase.from("profiles").select("pix_key").eq("id", adminsRes.data[0].user_id).maybeSingle()
           : Promise.resolve({ data: null } as any),
       ]);
 
+      // Deduplica por id para evitar linhas repetidas
+      const seenIds = new Set<string>();
+      const uniqueInsts = (instsRes.data || []).filter((i: any) => {
+        if (seenIds.has(i.id)) return false;
+        seenIds.add(i.id);
+        return true;
+      });
+
       const instsByTrip: Record<string, InstallmentItem[]> = {};
-      (instsRes.data || []).forEach((i: any) => {
+      uniqueInsts.forEach((i: any) => {
         (instsByTrip[i.trip_id] ||= []).push(i);
       });
+      // Ordena cada grupo por installment_number
+      Object.values(instsByTrip).forEach((arr) =>
+        arr.sort((a: any, b: any) => (a.installment_number || 0) - (b.installment_number || 0))
+      );
       const paidByTrip: Record<string, number> = {};
       (paysRes.data || []).forEach((p: any) => {
         paidByTrip[p.trip_id] = (paidByTrip[p.trip_id] || 0) + Number(p.amount_paid);
