@@ -616,7 +616,7 @@ export default function AdminDashboard() {
           </div>
           <BusAnimationWrapper>
             <div className="py-4 px-2">
-               <BusSeatPicker seats={seatData} onSeatClick={handleSeatClick} />
+               <BusSeatPicker seats={seatData} onSeatClick={handleSeatClick} allowReleaseOccupied />
             </div>
           </BusAnimationWrapper>
         </DialogContent>
