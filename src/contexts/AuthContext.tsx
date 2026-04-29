@@ -59,6 +59,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setUserRole(role);
+
+      // Vincula parcelas órfãs (criadas pelo admin antes do cadastro do cliente)
+      // ao auth.uid() recém-logado, usando o e-mail como chave
+      if (currentUser.email) {
+        try {
+          const { data: client } = await supabase
+            .from("clients")
+            .select("id")
+            .eq("email", currentUser.email)
+            .maybeSingle();
+          if (client?.id) {
+            const { data: bookings } = await supabase
+              .from("bookings")
+              .select("trip_id")
+              .eq("client_id", client.id);
+            const tripIds = (bookings || []).map((b: any) => b.trip_id);
+            if (tripIds.length > 0) {
+              await supabase
+                .from("installments")
+                .update({ user_id: currentUser.id })
+                .in("trip_id", tripIds)
+                .is("user_id", null);
+            }
+          }
+        } catch (e) {
+          console.warn("Falha ao vincular parcelas órfãs:", e);
+        }
+      }
     } catch (error) {
       console.error("Erro ao sincronizar perfil/role:", error);
       // Mantém o usuário logado com papel padrão se falhar

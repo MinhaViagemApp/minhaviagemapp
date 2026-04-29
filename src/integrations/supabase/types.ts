@@ -19,8 +19,10 @@ export type Database = {
           client_id: string
           created_at: string
           id: string
+          notification_shown: boolean
           payment_method: string
           payment_status: string
+          status: string
           total_value: number
           trip_id: string
         }
@@ -28,8 +30,10 @@ export type Database = {
           client_id: string
           created_at?: string
           id?: string
+          notification_shown?: boolean
           payment_method?: string
           payment_status?: string
+          status?: string
           total_value?: number
           trip_id: string
         }
@@ -37,8 +41,10 @@ export type Database = {
           client_id?: string
           created_at?: string
           id?: string
+          notification_shown?: boolean
           payment_method?: string
           payment_status?: string
+          status?: string
           total_value?: number
           trip_id?: string
         }
