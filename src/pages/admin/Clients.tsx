@@ -307,10 +307,11 @@ export default function AdminClients() {
   };
 
   const getStatusBadge = (client: Client) => {
-    if (client.totalDue === 0) return <Badge className="bg-amber-500/20 text-amber-500 border-0">Pendente</Badge>;
-    if (client.totalPaid >= client.totalDue) return <Badge className="bg-emerald-500/20 text-emerald-400 border-0"><Check className="h-3 w-3 mr-1" />Pago</Badge>;
-    if (client.hasLatePayment) return <Badge className="bg-rose-500/20 text-rose-400 border-0"><AlertCircle className="h-3 w-3 mr-1" />Atrasado</Badge>;
-    return <Badge className="bg-sky-500/20 text-sky-400 border-0"><Clock className="h-3 w-3 mr-1" />Pendente</Badge>;
+    const isActive = client.trips.length > 0;
+    if (isActive) {
+      return <Badge className="bg-emerald-500/20 text-emerald-400 border-0"><Check className="h-3 w-3 mr-1" />Ativo</Badge>;
+    }
+    return <Badge className="bg-muted text-muted-foreground border-0"><Clock className="h-3 w-3 mr-1" />Inativo</Badge>;
   };
 
   const getInstBadge = (inst: Installment) => {
