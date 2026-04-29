@@ -39,11 +39,13 @@ export const BusSeatPicker: React.FC<BusSeatPickerProps> = ({ seats, onSeatClick
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              onClick={() => onSeatClick?.(num)}
+              onClick={() => (isFree || isSelected || allowReleaseOccupied) && onSeatClick?.(num)}
               className={`
                 ${btnSize} rounded-lg font-bold border-2 shadow-sm flex items-center justify-center transition-all
                 ${isReserved
-                  ? "bg-red-500 border-red-700 text-white hover:bg-red-400 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+                  ? allowReleaseOccupied
+                    ? "bg-red-500 border-red-700 text-white hover:bg-red-400 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+                    : "bg-red-500 border-red-700 text-white cursor-help"
                   : isSelected
                   ? "bg-orange-500 border-orange-700 text-white hover:bg-orange-400 hover:-translate-y-0.5 hover:shadow-md cursor-pointer ring-2 ring-orange-300"
                   : "bg-emerald-500 border-emerald-700 text-white hover:bg-emerald-400 hover:-translate-y-0.5 hover:shadow-md cursor-pointer"}
