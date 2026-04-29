@@ -220,24 +220,43 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         .eq("trip_id", form.trip_id)
         .maybeSingle();
 
+      // Tenta inserir/atualizar com notification_shown; se cache do schema falhar,
+      // refaz sem o campo para não travar o fluxo (DB tem default false).
       if (!existingBooking) {
-        const { error: bookErr } = await supabase.from("bookings").insert({
+        const insertBase: any = {
           client_id: clientId,
           trip_id: form.trip_id,
           payment_method: form.payment_method,
           total_value: totalPrice,
           payment_status: "pendente",
           status: "confirmada",
-          notification_shown: false,
-        } as any);
-        if (bookErr) throw bookErr;
+        };
+        try {
+          const { error: bookErr } = await supabase
+            .from("bookings")
+            .insert({ ...insertBase, notification_shown: false } as any);
+          if (bookErr) throw bookErr;
+        } catch (e: any) {
+          console.warn("Fallback bookings insert sem notification_shown:", e?.message);
+          const { error: bookErr2 } = await supabase.from("bookings").insert(insertBase as any);
+          if (bookErr2) throw bookErr2;
+        }
       } else {
-        await supabase.from("bookings").update({
+        const updateBase: any = {
           payment_method: form.payment_method,
           total_value: totalPrice,
           status: "confirmada",
-          notification_shown: false,
-        } as any).eq("id", existingBooking.id);
+        };
+        try {
+          const { error: upErr } = await supabase
+            .from("bookings")
+            .update({ ...updateBase, notification_shown: false } as any)
+            .eq("id", existingBooking.id);
+          if (upErr) throw upErr;
+        } catch (e: any) {
+          console.warn("Fallback bookings update sem notification_shown:", e?.message);
+          await supabase.from("bookings").update(updateBase as any).eq("id", existingBooking.id);
+        }
       }
 
       // 6. Gerar Parcelas — APENAS se ainda não existirem para esta trip+cliente
@@ -291,11 +310,15 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
       // 7. Notificação (somente se já existir auth.user — caso contrário, será
       // disparada via realtime/fallback no Dashboard ao logar pela primeira vez)
       if (existingUserId) {
-        await supabase.from("notifications").insert({
-          user_id: existingUserId,
-          title: "Reserva confirmada!",
-          message: `Sua reserva para ${selectedTrip?.destination ?? "a viagem"} foi confirmada.`,
-        });
+        try {
+          await supabase.from("notifications").insert({
+            user_id: existingUserId,
+            title: "Reserva confirmada!",
+            message: `Sua reserva para ${selectedTrip?.destination ?? "a viagem"} foi confirmada.`,
+          });
+        } catch (e: any) {
+          console.warn("Falha ao inserir notificação (não crítico):", e?.message);
+        }
       }
 
       toast.success(`✅ ${selectedSeats.length} poltrona(s) reservada(s) com sucesso!`);
@@ -491,7 +514,7 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         <div className="flex justify-end gap-2 border-t pt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={handleSave} disabled={isSaving || selectedSeats.length === 0} className="gradient-accent px-8">
-            {isSaving ? "Salvando..." : `Finalizar Reserva${selectedSeats.length > 0 ? ` (${selectedSeats.length} poltrona${selectedSeats.length > 1 ? 's' : ''})` : ''}`}
+            {isSaving ? "Salvando..." : "Confirmar Reserva"}
           </Button>
         </div>
       </DialogContent>
