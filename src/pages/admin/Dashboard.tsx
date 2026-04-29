@@ -183,10 +183,25 @@ export default function AdminDashboard() {
     })));
   };
 
-  const handleSeatClick = (seatNumber: string) => {
+  const handleSeatClick = async (seatNumber: string) => {
     const seat = seatData.find(s => s.number === seatNumber);
     if (seat && seat.status === "occupied") {
-      toast.info(`Poltrona ${seatNumber} já está ocupada por ${seat.occupantName}`);
+      const occupantInfo = seat.occupantName ? ` (${seat.occupantName})` : "";
+      const ok = window.confirm(`Liberar a poltrona ${seatNumber}${occupantInfo}? Ela ficará livre para nova reserva.`);
+      if (!ok) return;
+      if (!selectedTrip) return;
+      try {
+        const { error } = await supabase
+          .from("bus_seats")
+          .update({ status: "livre", client_id: null, passenger_name: null, updated_at: new Date().toISOString() })
+          .eq("trip_id", selectedTrip.id)
+          .eq("seat_number", parseInt(seatNumber, 10));
+        if (error) throw error;
+        toast.success(`Poltrona ${seatNumber} liberada!`);
+        await handleTripSelect(selectedTrip);
+      } catch (e: any) {
+        toast.error("Falha ao liberar poltrona: " + (e?.message || "erro"));
+      }
       return;
     }
     setAssignSeat(seatNumber);
@@ -601,7 +616,7 @@ export default function AdminDashboard() {
           </div>
           <BusAnimationWrapper>
             <div className="py-4 px-2">
-               <BusSeatPicker seats={seatData} onSeatClick={handleSeatClick} />
+               <BusSeatPicker seats={seatData} onSeatClick={handleSeatClick} allowReleaseOccupied />
             </div>
           </BusAnimationWrapper>
         </DialogContent>
