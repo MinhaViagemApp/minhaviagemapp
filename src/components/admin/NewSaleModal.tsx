@@ -220,43 +220,28 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         .eq("trip_id", form.trip_id)
         .maybeSingle();
 
-      // Tenta inserir/atualizar com notification_shown; se cache do schema falhar,
-      // refaz sem o campo para não travar o fluxo (DB tem default false).
       if (!existingBooking) {
-        const insertBase: any = {
+        const { error: bookErr } = await supabase.from("bookings").insert({
           client_id: clientId,
           trip_id: form.trip_id,
           payment_method: form.payment_method,
           total_value: totalPrice,
           payment_status: "pendente",
           status: "confirmada",
-        };
-        try {
-          const { error: bookErr } = await supabase
-            .from("bookings")
-            .insert({ ...insertBase, notification_shown: false } as any);
-          if (bookErr) throw bookErr;
-        } catch (e: any) {
-          console.warn("Fallback bookings insert sem notification_shown:", e?.message);
-          const { error: bookErr2 } = await supabase.from("bookings").insert(insertBase as any);
-          if (bookErr2) throw bookErr2;
-        }
+          notification_shown: false,
+        } as any);
+        if (bookErr) throw bookErr;
       } else {
-        const updateBase: any = {
-          payment_method: form.payment_method,
-          total_value: totalPrice,
-          status: "confirmada",
-        };
-        try {
-          const { error: upErr } = await supabase
-            .from("bookings")
-            .update({ ...updateBase, notification_shown: false } as any)
-            .eq("id", existingBooking.id);
-          if (upErr) throw upErr;
-        } catch (e: any) {
-          console.warn("Fallback bookings update sem notification_shown:", e?.message);
-          await supabase.from("bookings").update(updateBase as any).eq("id", existingBooking.id);
-        }
+        const { error: upErr } = await supabase
+          .from("bookings")
+          .update({
+            payment_method: form.payment_method,
+            total_value: totalPrice,
+            status: "confirmada",
+            notification_shown: false,
+          } as any)
+          .eq("id", existingBooking.id);
+        if (upErr) throw upErr;
       }
 
       // 6. Gerar Parcelas — APENAS se ainda não existirem para esta trip+cliente
