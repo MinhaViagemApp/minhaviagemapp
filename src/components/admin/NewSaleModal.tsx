@@ -322,7 +322,9 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
   };
 
   const resetForm = () => {
-    setForm({ name: "", email: "", cpf: "", phone: "", address: "", trip_id: "", payment_method: "pix", installments: "1" });
+    setForm({ name: "", email: "", cpf: "", phone: "", address: "", trip_id: "", payment_method: "pix", installments: "1", coupon_code: "" });
+    setCouponInfo(null);
+    setCouponMsg("");
     setSelectedSeats([]);
     setSaleSeatData([]);
   };
