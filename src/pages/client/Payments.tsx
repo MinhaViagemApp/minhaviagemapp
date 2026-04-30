@@ -37,88 +37,110 @@ export default function ClientPayments() {
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      // 1. Resolver client_id pelo email (cadastro feito pelo admin) e profile do usuário
-      const [clientRowRes, queriesRes, adminsRes] = await Promise.all([
+      // 1. Resolver client_id pelo email do usuário autenticado
+      const [clientRowRes, adminsRes] = await Promise.all([
         user.email
           ? supabase.from("clients").select("id").eq("email", user.email).maybeSingle()
           : Promise.resolve({ data: null } as any),
-        supabase
-          .from("trip_queries")
-          .select("trip_id, payment_method, status")
-          .eq("user_id", user.id)
-          .eq("status", "confirmada"),
         supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1),
       ]);
 
       const clientId = (clientRowRes as any)?.data?.id as string | undefined;
-      const tripMethodMap = new Map<string, string>();
-      (queriesRes.data || []).forEach((q: any) => {
-        if (q.trip_id) tripMethodMap.set(q.trip_id, q.payment_method);
-      });
 
-      let bookings: any[] = [];
+      // 2. Buscar TODAS as parcelas deste cliente (por client_id) e por user_id como fallback
+      const installmentQueries: Promise<any>[] = [];
       if (clientId) {
-        const { data } = await supabase
-          .from("bookings")
-          .select("trip_id, payment_method")
-          .eq("client_id", clientId);
-        bookings = data || [];
-        bookings.forEach((b: any) => {
-          if (!tripMethodMap.has(b.trip_id)) tripMethodMap.set(b.trip_id, b.payment_method);
-        });
+        installmentQueries.push(
+          supabase.from("installments").select("*").eq("client_id", clientId)
+        );
+      }
+      installmentQueries.push(
+        supabase.from("installments").select("*").eq("user_id", user.id)
+      );
+
+      // Pré-reservas confirmadas (para mapear método de pagamento da viagem)
+      const queriesPromise = supabase
+        .from("trip_queries")
+        .select("trip_id, payment_method, status")
+        .eq("user_id", user.id)
+        .eq("status", "confirmada");
+
+      // Bookings deste cliente (para mapear método de pagamento)
+      const bookingsPromise = clientId
+        ? supabase.from("bookings").select("trip_id, payment_method").eq("client_id", clientId)
+        : Promise.resolve({ data: [] } as any);
+
+      const allInstResults = await Promise.all([...installmentQueries, queriesPromise, bookingsPromise]);
+      const queriesRes = allInstResults[allInstResults.length - 2];
+      const bookingsRes = allInstResults[allInstResults.length - 1];
+      const instRows: any[] = [];
+      for (let i = 0; i < installmentQueries.length; i++) {
+        instRows.push(...((allInstResults[i] as any)?.data || []));
       }
 
-      const tripIds = Array.from(tripMethodMap.keys());
+      // Deduplica parcelas por id
+      const seenIds = new Set<string>();
+      const allInsts = instRows.filter((i: any) => {
+        if (seenIds.has(i.id)) return false;
+        seenIds.add(i.id);
+        return true;
+      });
+
+      // Mapa de método de pagamento por viagem
+      const tripMethodMap = new Map<string, string>();
+      ((bookingsRes as any)?.data || []).forEach((b: any) => {
+        if (b.trip_id) tripMethodMap.set(b.trip_id, b.payment_method);
+      });
+      ((queriesRes as any)?.data || []).forEach((q: any) => {
+        if (q.trip_id && !tripMethodMap.has(q.trip_id)) tripMethodMap.set(q.trip_id, q.payment_method);
+      });
+      // Garantir todas as viagens das parcelas
+      const tripIds = Array.from(new Set([
+        ...allInsts.map((i: any) => i.trip_id),
+        ...Array.from(tripMethodMap.keys()),
+      ])).filter(Boolean);
+
       if (tripIds.length === 0) {
         setGroups([]);
         setLoading(false);
         return;
       }
 
-      // Busca parcelas: prioriza por client_id (mais confiável); fallback por user_id
-      const instsQuery = clientId
-        ? supabase.from("installments").select("*").in("trip_id", tripIds).or(`client_id.eq.${clientId},user_id.eq.${user.id}`)
-        : supabase.from("installments").select("*").in("trip_id", tripIds).eq("user_id", user.id);
-
-      const [tripsRes, instsRes, paysRes, pixRes] = await Promise.all([
+      const [tripsRes, paysRes, pixRes] = await Promise.all([
         supabase.from("trips").select("id, destination, start_date, end_date, total_price").in("id", tripIds),
-        instsQuery,
         supabase.from("payments").select("trip_id, amount_paid").in("trip_id", tripIds),
         adminsRes.data?.[0]?.user_id
           ? supabase.from("profiles").select("pix_key").eq("id", adminsRes.data[0].user_id).maybeSingle()
           : Promise.resolve({ data: null } as any),
       ]);
 
-      // Deduplica por id
-      const seenIds = new Set<string>();
-      const uniqueInsts = (instsRes.data || []).filter((i: any) => {
-        if (seenIds.has(i.id)) return false;
-        seenIds.add(i.id);
-        return true;
-      });
-
       const instsByTrip: Record<string, InstallmentItem[]> = {};
-      uniqueInsts.forEach((i: any) => {
+      allInsts.forEach((i: any) => {
         (instsByTrip[i.trip_id] ||= []).push(i);
       });
       Object.values(instsByTrip).forEach((arr) =>
         arr.sort((a: any, b: any) => (a.installment_number || 0) - (b.installment_number || 0))
       );
+
       const paidByTrip: Record<string, number> = {};
       (paysRes.data || []).forEach((p: any) => {
         paidByTrip[p.trip_id] = (paidByTrip[p.trip_id] || 0) + Number(p.amount_paid);
       });
 
-      const groupsArr: TripGroup[] = (tripsRes.data || []).map((t: any) => ({
-        trip_id: t.id,
-        destination: t.destination,
-        start_date: t.start_date,
-        end_date: t.end_date,
-        total_price: Number(t.total_price),
-        payment_method: tripMethodMap.get(t.id) || "pix",
-        installments: instsByTrip[t.id] || [],
-        paidSum: paidByTrip[t.id] || 0,
-      }));
+      const groupsArr: TripGroup[] = (tripsRes.data || []).map((t: any) => {
+        const insts = instsByTrip[t.id] || [];
+        const methodFromInst = insts[0]?.payment_method;
+        return {
+          trip_id: t.id,
+          destination: t.destination,
+          start_date: t.start_date,
+          end_date: t.end_date,
+          total_price: Number(t.total_price),
+          payment_method: tripMethodMap.get(t.id) || methodFromInst || "pix",
+          installments: insts,
+          paidSum: paidByTrip[t.id] || 0,
+        };
+      });
 
       setGroups(groupsArr);
       const pix = (pixRes as any)?.data?.pix_key;
