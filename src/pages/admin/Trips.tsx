@@ -21,6 +21,7 @@ interface Trip {
   user_id: string;
   client_name?: string;
   preview_image?: string;
+  images_list?: string[];
   is_public?: boolean;
   max_installments_card?: number;
   credit_card_fee_percent?: number;
@@ -71,11 +72,15 @@ export default function AdminTrips() {
     const userIds = [...new Set(allTrips.map(t => t.user_id))];
     const { data: profiles } = await supabase.from("profiles").select("id, name").in("id", userIds);
     const profileMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
-    setTrips(allTrips.map(t => ({ 
-      ...t, 
-      client_name: profileMap.get(t.user_id) || "—",
-      preview_image: (t as any).trip_images?.[0]?.image_url || null
-    })) as Trip[]);
+    setTrips(allTrips.map(t => {
+      const imgs = ((t as any).trip_images || []).map((i: any) => i.image_url).filter(Boolean);
+      return {
+        ...t,
+        client_name: profileMap.get(t.user_id) || "—",
+        preview_image: imgs[0] || null,
+        images_list: imgs,
+      };
+    }) as Trip[]);
   };
 
   const fetchClients = async () => {
