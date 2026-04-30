@@ -86,26 +86,66 @@ export default function AdminDashboard() {
   const openModal = async (type: typeof modal) => {
     setModal(type);
     if (type === "clients" || type === "active-clients") {
-      const { data: clientsData } = await supabase.from("profiles").select("id, name, email, phone, created_at").order("created_at", { ascending: false });
-      const { data: tripsData } = await supabase.from("trips").select("id, user_id, destination");
-      
-      // Para clientes ativos: filtrar somente quem tem viagens
-      const usersWithTrips = new Set((tripsData || []).map(t => t.user_id));
-      const filtered = type === "active-clients" 
-        ? (clientsData || []).filter(c => usersWithTrips.has(c.id))
-        : (clientsData || []);
+      // 1. Carregar profiles (não-admin) e clients (criados pelo admin)
+      const [{ data: profilesData }, { data: clientsData }, { data: rolesData }, { data: tripsData }, { data: bookingsData }] = await Promise.all([
+        supabase.from("profiles").select("id, name, email, phone, created_at").order("created_at", { ascending: false }),
+        supabase.from("clients").select("id, name, email, phone, created_at").order("created_at", { ascending: false }),
+        supabase.from("user_roles").select("user_id, role"),
+        supabase.from("trips").select("id, user_id, destination"),
+        supabase.from("bookings").select("client_id, trip_id"),
+      ]);
 
-      // Mapeia destinos por usuário
-      const userTripsMap = new Map<string, string[]>();
-      (tripsData || []).forEach(t => {
-        if (!userTripsMap.has(t.user_id)) userTripsMap.set(t.user_id, []);
-        userTripsMap.get(t.user_id)!.push(t.destination);
+      const adminIds = new Set((rolesData || []).filter((r: any) => r.role === "admin").map((r: any) => r.user_id));
+      const tripDestById = new Map((tripsData || []).map((t: any) => [t.id, t.destination]));
+
+      // Destinos por user (viagens privadas)
+      const destsByUser = new Map<string, string[]>();
+      (tripsData || []).forEach((t: any) => {
+        if (!destsByUser.has(t.user_id)) destsByUser.set(t.user_id, []);
+        destsByUser.get(t.user_id)!.push(t.destination);
+      });
+      // Destinos por client_id (via bookings)
+      const destsByClientId = new Map<string, string[]>();
+      (bookingsData || []).forEach((b: any) => {
+        const dest = tripDestById.get(b.trip_id);
+        if (!dest || !b.client_id) return;
+        if (!destsByClientId.has(b.client_id)) destsByClientId.set(b.client_id, []);
+        if (!destsByClientId.get(b.client_id)!.includes(dest)) destsByClientId.get(b.client_id)!.push(dest);
       });
 
-      setClients(filtered.map(c => ({
-        ...c,
-        viagem_nome: userTripsMap.get(c.id)?.join(", ") || "Sem reserva"
-      })));
+      // Mescla profiles + clients por email
+      type Merged = ClientRow & { has_profile: boolean; client_id?: string | null };
+      const byEmail = new Map<string, Merged>();
+      (profilesData || []).forEach((p: any) => {
+        if (adminIds.has(p.id) || !p.email) return;
+        byEmail.set(p.email.toLowerCase(), { ...p, has_profile: true });
+      });
+      (clientsData || []).forEach((c: any) => {
+        const key = (c.email || "").toLowerCase();
+        if (!key) return;
+        const existing = byEmail.get(key);
+        if (existing) {
+          existing.client_id = c.id;
+          existing.phone = existing.phone || c.phone;
+        } else {
+          byEmail.set(key, { ...c, client_id: c.id, has_profile: false });
+        }
+      });
+
+      const merged = Array.from(byEmail.values()).map((m) => {
+        const dests = [
+          ...(m.has_profile ? (destsByUser.get(m.id) || []) : []),
+          ...(m.client_id ? (destsByClientId.get(m.client_id) || []) : []),
+        ];
+        const unique = Array.from(new Set(dests));
+        return { ...m, viagem_nome: unique.length > 0 ? unique.join(", ") : "Sem reserva" };
+      });
+
+      const filtered = type === "active-clients"
+        ? merged.filter((c) => c.viagem_nome !== "Sem reserva")
+        : merged;
+
+      setClients(filtered);
     } else if (type === "trips" || type === "active") {
       const { data } = await supabase.from("trips").select("*").order("start_date", { ascending: false });
       const allTrips = data || [];

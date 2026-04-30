@@ -13,6 +13,7 @@ import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
 import { celebrateApproval } from "@/lib/celebrate";
 import { computePrice, validateCoupon, type ValidatedCoupon } from "@/lib/pricing";
+import { ImageAutoCarousel } from "@/components/ImageAutoCarousel";
 import { 
   MessageCircle, 
   Info, 
@@ -190,10 +191,14 @@ export default function ClientDashboard() {
         .gte("end_date", new Date().toISOString().split("T")[0])
         .order("start_date", { ascending: true });
       
-      setPublicTrips((pTrips || []).map(t => ({
-        ...t,
-        preview_image: (t as any).trip_images?.[0]?.image_url || null
-      })));
+      setPublicTrips((pTrips || []).map(t => {
+        const imgs = ((t as any).trip_images || []).map((i: any) => i.image_url).filter(Boolean);
+        return {
+          ...t,
+          preview_image: imgs[0] || null,
+          images_list: imgs,
+        };
+      }));
 
       // Fetch promotions
       const { data: promos } = await supabase
@@ -203,10 +208,14 @@ export default function ClientDashboard() {
         .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
       
-      setPromotions((promos || []).map(p => ({
-        ...p,
-        preview_image: (p as any).promotion_images?.[0]?.image_url || null
-      })));
+      setPromotions((promos || []).map(p => {
+        const imgs = ((p as any).promotion_images || []).map((i: any) => i.image_url).filter(Boolean);
+        return {
+          ...p,
+          preview_image: imgs[0] || null,
+          images_list: imgs,
+        };
+      }));
 
       // Fetch admin info (PIX and Phone)
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1);
@@ -234,6 +243,17 @@ export default function ClientDashboard() {
               .eq("notification_shown", false);
             for (const b of (pendingBookings || []) as any[]) {
               if (celebratedRef.current.has(b.id)) continue;
+              // Já mostrado anteriormente neste navegador? marca e segue.
+              try {
+                if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${b.id}`)) {
+                  celebratedRef.current.add(b.id);
+                  await (supabase as any)
+                    .from("bookings")
+                    .update({ notification_shown: true })
+                    .eq("id", b.id);
+                  continue;
+                }
+              } catch {}
               celebratedRef.current.add(b.id);
               try { localStorage.setItem(`approval-shown-${b.id}`, "1"); } catch {}
               const { data: t } = await supabase
@@ -299,6 +319,13 @@ export default function ClientDashboard() {
 
     const triggerCelebration = async (tripId: string, sourceId: string) => {
       if (celebratedRef.current.has(sourceId)) return;
+      // Bloqueia se já foi mostrado anteriormente neste navegador
+      try {
+        if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${sourceId}`)) {
+          celebratedRef.current.add(sourceId);
+          return;
+        }
+      } catch {}
       celebratedRef.current.add(sourceId);
       try { localStorage.setItem(`approval-shown-${sourceId}`, "1"); } catch {}
       celebrateApproval();
@@ -654,11 +681,15 @@ export default function ClientDashboard() {
                 onClick={() => setSelectedPublicTrip(t)}
               >
                 <div className="h-44 w-full relative overflow-hidden">
-                  {(t as any).preview_image ? (
-                    <img src={(t as any).preview_image} alt={t.destination} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="flex items-center justify-center h-full bg-secondary/30"><Plane className="h-10 w-10 text-muted-foreground/30" /></div>
-                  )}
+                  <ImageAutoCarousel
+                    images={(t as any).images_list || ((t as any).preview_image ? [(t as any).preview_image] : [])}
+                    alt={t.destination}
+                    className="w-full h-full"
+                    imgClassName="h-44 group-hover:scale-105 transition-transform duration-500"
+                    fallback={
+                      <div className="flex items-center justify-center h-full bg-secondary/30"><Plane className="h-10 w-10 text-muted-foreground/30" /></div>
+                    }
+                  />
                 </div>
                 <CardHeader className="pb-2 pt-3">
                   <CardTitle className="flex items-center gap-2 text-lg font-black group-hover:text-primary transition-colors">
@@ -701,12 +732,16 @@ export default function ClientDashboard() {
             {promotions.map((promo) => (
               <Card key={promo.id} className="glass animate-fade-in overflow-hidden hover:scale-[1.02] transition-transform border-accent/20 group">
                 <div className="h-44 w-full relative overflow-hidden">
-                  {promo.preview_image ? (
-                    <img src={promo.preview_image} alt={promo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="bg-secondary/30 h-full flex items-center justify-center"><Tag className="h-10 w-10 text-muted-foreground/30" /></div>
-                  )}
-                  <div className="absolute top-3 left-3 bg-accent text-white text-[10px] font-black px-2 py-1 rounded shadow-lg">OFERTA</div>
+                  <ImageAutoCarousel
+                    images={(promo as any).images_list || ((promo as any).preview_image ? [(promo as any).preview_image] : [])}
+                    alt={promo.title}
+                    className="w-full h-full"
+                    imgClassName="h-44 group-hover:scale-105 transition-transform duration-500"
+                    fallback={
+                      <div className="bg-secondary/30 h-full flex items-center justify-center"><Tag className="h-10 w-10 text-muted-foreground/30" /></div>
+                    }
+                  />
+                  <div className="absolute top-3 left-3 bg-accent text-white text-[10px] font-black px-2 py-1 rounded shadow-lg z-10">OFERTA</div>
                 </div>
                 <CardHeader className="pb-2 pt-3">
                   <CardTitle className="flex items-center gap-2 text-lg font-black group-hover:text-accent transition-colors">

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2, Trash2, Archive } from "lucide-react";
+import { ImageAutoCarousel } from "@/components/ImageAutoCarousel";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -21,6 +22,7 @@ interface Trip {
   user_id: string;
   client_name?: string;
   preview_image?: string;
+  images_list?: string[];
   is_public?: boolean;
   max_installments_card?: number;
   credit_card_fee_percent?: number;
@@ -71,11 +73,15 @@ export default function AdminTrips() {
     const userIds = [...new Set(allTrips.map(t => t.user_id))];
     const { data: profiles } = await supabase.from("profiles").select("id, name").in("id", userIds);
     const profileMap = new Map(profiles?.map(p => [p.id, p.name]) || []);
-    setTrips(allTrips.map(t => ({ 
-      ...t, 
-      client_name: profileMap.get(t.user_id) || "—",
-      preview_image: (t as any).trip_images?.[0]?.image_url || null
-    })) as Trip[]);
+    setTrips(allTrips.map(t => {
+      const imgs = ((t as any).trip_images || []).map((i: any) => i.image_url).filter(Boolean);
+      return {
+        ...t,
+        client_name: profileMap.get(t.user_id) || "—",
+        preview_image: imgs[0] || null,
+        images_list: imgs,
+      };
+    }) as Trip[]);
   };
 
   const fetchClients = async () => {
@@ -450,16 +456,21 @@ export default function AdminTrips() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleTrips.map((trip) => (
           <Card key={trip.id} className="glass animate-fade-in overflow-hidden">
-            {trip.preview_image ? (
-              <div className="relative h-40 w-full">
-                <img src={trip.preview_image} alt={trip.destination} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent flex items-end p-4">
-                  <h3 className="text-xl font-bold flex items-center gap-2">
-                    <MapPin className="h-5 w-5 text-accent" />
-                    {trip.destination}
-                  </h3>
-                </div>
-              </div>
+            {(trip.images_list && trip.images_list.length > 0) ? (
+              <ImageAutoCarousel
+                images={trip.images_list}
+                alt={trip.destination}
+                className="h-40 w-full"
+                imgClassName="h-40"
+                overlay={
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 to-transparent flex items-end p-4 pointer-events-none">
+                    <h3 className="text-xl font-bold flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-accent" />
+                      {trip.destination}
+                    </h3>
+                  </div>
+                }
+              />
             ) : (
               <div className="h-40 w-full bg-secondary/30 flex items-center justify-center border-b border-border">
                 <MapPin className="h-10 w-10 text-muted-foreground/30" />

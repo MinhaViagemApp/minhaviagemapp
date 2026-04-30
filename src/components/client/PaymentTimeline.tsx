@@ -16,6 +16,7 @@ export interface InstallmentItem {
   status: string; // pendente | pago | atrasado | cancelado
   paid_at?: string | null;
   receipt_url?: string | null;
+  payment_method?: string | null;
 }
 
 interface PaymentTimelineProps {
