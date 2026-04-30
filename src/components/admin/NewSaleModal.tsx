@@ -278,51 +278,40 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         if (upErr) throw upErr;
       }
 
-      // 6. Gerar Parcelas — APENAS se ainda não existirem para esta trip+cliente
-      // (evita duplicação ao reabrir o modal ou em duplo clique)
+      // 6. Gerar Parcelas — sempre por (trip_id, client_id) para isolar cada cliente
       if (selectedTrip) {
         const qty = parseInt(form.installments) || 1;
         const perAmount = totalPrice / qty;
         const today = new Date();
 
-        // Checa parcelas existentes vinculadas: por user_id (se já houver perfil)
-        // ou via bookings do cliente para esta viagem
-        const { data: existingInsts } = await supabase
+        // Apaga parcelas antigas DESTE cliente nesta viagem (não afeta outros clientes)
+        await supabase
           .from("installments")
-          .select("id, user_id")
-          .eq("trip_id", selectedTrip.id);
+          .delete()
+          .eq("trip_id", selectedTrip.id)
+          .eq("client_id", clientId);
 
-        const alreadyHasInstallments = (existingInsts || []).some((i: any) =>
-          existingUserId ? i.user_id === existingUserId : true
-        ) && (existingInsts || []).length >= qty;
+        const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
+          const dueDate = new Date(today);
+          dueDate.setMonth(today.getMonth() + i);
+          return {
+            trip_id: selectedTrip.id,
+            client_id: clientId,
+            user_id: existingUserId ?? null,
+            installment_number: i + 1,
+            amount: perAmount,
+            status: "pendente",
+            payment_method: form.payment_method,
+            due_date: dueDate.toISOString().split("T")[0],
+          };
+        });
 
-        if (!alreadyHasInstallments) {
-          // Limpa parcelas antigas órfãs deste mesmo user_id (se houver) para
-          // evitar mistura de planos antigos com o atual
-          if (existingUserId && (existingInsts || []).length > 0) {
-            await supabase
-              .from("installments")
-              .delete()
-              .eq("trip_id", selectedTrip.id)
-              .eq("user_id", existingUserId);
-          }
+        const { error: instError } = await supabase.from("installments").insert(installmentsToInsert as any);
+        if (instError) throw instError;
 
-          const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
-            const dueDate = new Date(today);
-            dueDate.setMonth(today.getMonth() + i);
-            return {
-              trip_id: selectedTrip.id,
-              user_id: existingUserId ?? null,
-              installment_number: i + 1,
-              amount: perAmount,
-              status: "pendente",
-              payment_method: form.payment_method,
-              due_date: dueDate.toISOString().split("T")[0],
-            };
-          });
-
-          const { error: instError } = await supabase.from("installments").insert(installmentsToInsert);
-          if (instError) throw instError;
+        // Consumir cupom se aplicado
+        if (couponInfo?.code) {
+          await (supabase as any).rpc("consume_coupon", { _code: couponInfo.code });
         }
       }
 
