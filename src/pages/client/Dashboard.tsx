@@ -243,6 +243,17 @@ export default function ClientDashboard() {
               .eq("notification_shown", false);
             for (const b of (pendingBookings || []) as any[]) {
               if (celebratedRef.current.has(b.id)) continue;
+              // Já mostrado anteriormente neste navegador? marca e segue.
+              try {
+                if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${b.id}`)) {
+                  celebratedRef.current.add(b.id);
+                  await (supabase as any)
+                    .from("bookings")
+                    .update({ notification_shown: true })
+                    .eq("id", b.id);
+                  continue;
+                }
+              } catch {}
               celebratedRef.current.add(b.id);
               try { localStorage.setItem(`approval-shown-${b.id}`, "1"); } catch {}
               const { data: t } = await supabase
