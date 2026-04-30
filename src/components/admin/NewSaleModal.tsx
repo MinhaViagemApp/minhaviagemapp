@@ -118,9 +118,38 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
 
   // Preço base = preço da viagem × quantidade de poltronas
   const basePrice = selectedTrip ? selectedTrip.total_price * qtdSeats : 0;
-  // Total final = base + taxa do cartão (se houver)
-  const totalPrice = basePrice * (1 + cardFeePercent / 100);
-  const pricePerInstallment = totalPrice / parseInt(form.installments || "1");
+  const installmentsQty = parseInt(form.installments || "1");
+  const breakdown = computePrice({
+    base: basePrice,
+    paymentMethod: form.payment_method,
+    installments: installmentsQty,
+    creditCardFeePercent: parseFloat(selectedTrip?.credit_card_fee_percent || "0") || 0,
+    boletoFeePercent: 0,
+    couponPercent: couponInfo?.discount_percent || 0,
+    couponCashOnly: couponInfo?.cash_only ?? true,
+  });
+  const totalPrice = breakdown.total;
+  const pricePerInstallment = totalPrice / installmentsQty;
+
+  // Aplicar/remover cupom
+  const handleApplyCoupon = async () => {
+    setCouponMsg("");
+    const { coupon, error } = await validateCoupon(form.coupon_code, form.payment_method, installmentsQty);
+    if (error || !coupon) {
+      setCouponInfo(null);
+      setCouponMsg(error || "Cupom inválido.");
+      toast.error(error || "Cupom inválido.");
+      return;
+    }
+    setCouponInfo(coupon);
+    setCouponMsg(`Cupom aplicado: ${coupon.discount_percent}% de desconto.`);
+    toast.success("Cupom aplicado!");
+  };
+  const handleRemoveCoupon = () => {
+    setCouponInfo(null);
+    setCouponMsg("");
+    setForm((f) => ({ ...f, coupon_code: "" }));
+  };
 
   // Quando mudar método de pagamento, resetar parcelas para não ultrapassar o máximo
   const handlePaymentMethodChange = (method: string) => {
