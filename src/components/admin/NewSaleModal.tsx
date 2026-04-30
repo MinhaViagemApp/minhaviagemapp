@@ -30,8 +30,11 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
     address: "",
     trip_id: "",
     payment_method: "pix",
-    installments: "1"
+    installments: "1",
+    coupon_code: "",
   });
+  const [couponInfo, setCouponInfo] = useState<{ code: string; discount_percent: number; cash_only: boolean } | null>(null);
+  const [couponMsg, setCouponMsg] = useState<string>("");
 
   useEffect(() => {
     if (open) {
