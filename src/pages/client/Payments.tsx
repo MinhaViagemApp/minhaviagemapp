@@ -51,24 +51,26 @@ export default function ClientPayments() {
       const installmentQueries: Promise<any>[] = [];
       if (clientId) {
         installmentQueries.push(
-          supabase.from("installments").select("*").eq("client_id", clientId)
+          Promise.resolve(supabase.from("installments").select("*").eq("client_id", clientId))
         );
       }
       installmentQueries.push(
-        supabase.from("installments").select("*").eq("user_id", user.id)
+        Promise.resolve(supabase.from("installments").select("*").eq("user_id", user.id))
       );
 
       // Pré-reservas confirmadas (para mapear método de pagamento da viagem)
-      const queriesPromise = supabase
-        .from("trip_queries")
-        .select("trip_id, payment_method, status")
-        .eq("user_id", user.id)
-        .eq("status", "confirmada");
+      const queriesPromise: Promise<any> = Promise.resolve(
+        supabase
+          .from("trip_queries")
+          .select("trip_id, payment_method, status")
+          .eq("user_id", user.id)
+          .eq("status", "confirmada")
+      );
 
       // Bookings deste cliente (para mapear método de pagamento)
-      const bookingsPromise = clientId
-        ? supabase.from("bookings").select("trip_id, payment_method").eq("client_id", clientId)
-        : Promise.resolve({ data: [] } as any);
+      const bookingsPromise: Promise<any> = clientId
+        ? Promise.resolve(supabase.from("bookings").select("trip_id, payment_method").eq("client_id", clientId))
+        : Promise.resolve({ data: [] });
 
       const allInstResults = await Promise.all([...installmentQueries, queriesPromise, bookingsPromise]);
       const queriesRes = allInstResults[allInstResults.length - 2];
