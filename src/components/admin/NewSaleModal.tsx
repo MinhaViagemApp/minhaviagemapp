@@ -477,6 +477,12 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                     <span className="text-muted-foreground">Poltronas selecionadas:</span>
                     <span className="font-bold text-primary">{Math.max(selectedSeats.length, 0)}</span>
                   </div>
+                  {couponInfo && breakdown.discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-400">
+                      <span>Desconto cupom ({couponInfo.discount_percent}%):</span>
+                      <span className="font-bold">-{fmt(breakdown.discountAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-white/10 pt-1 mt-1">
                     <span className="font-bold">Total:</span>
                     <span className="font-black text-emerald-400 text-base">{fmt(totalPrice)}</span>
