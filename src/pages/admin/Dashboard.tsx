@@ -36,22 +36,44 @@ export default function AdminDashboard() {
   const [clientInstallments, setClientInstallments] = useState<any[]>([]);
 
   const fetchStats = async () => {
-    const [cRes, tRes, pRes, qRes] = await Promise.all([
-      supabase.from("profiles").select("id", { count: "exact", head: true }),
+    const [profilesRes, tRes, pRes, qRes, rolesRes, bookingsRes, clientsRes] = await Promise.all([
+      supabase.from("profiles").select("id, email"),
       supabase.from("trips").select("id, end_date"),
       supabase.from("payments").select("amount_paid"),
       supabase.from("trip_queries").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+      supabase.from("user_roles").select("user_id, role"),
+      supabase.from("bookings").select("client_id"),
+      supabase.from("clients").select("id, email"),
     ]);
-    // Calcula clientes ativos (que têm pelo menos um installment)
-    const { data: activeInstalls } = await supabase.from("installments").select("trip_id, trips(user_id)");
-    const activeUserIds = new Set((activeInstalls || []).map((i: any) => i.trips?.user_id).filter(Boolean));
+
+    // Excluir admins do total de clientes
+    const adminIds = new Set((rolesRes.data || []).filter((r: any) => r.role === "admin").map((r: any) => r.user_id));
+    const adminEmails = new Set(
+      (profilesRes.data || []).filter((p: any) => adminIds.has(p.id)).map((p: any) => (p.email || "").toLowerCase())
+    );
+
+    // Total de clientes = profiles não-admin + clients (criados pelo admin) sem profile, deduplicados por email
+    const allEmails = new Set<string>();
+    (profilesRes.data || []).forEach((p: any) => {
+      if (!adminIds.has(p.id) && p.email) allEmails.add(p.email.toLowerCase());
+    });
+    (clientsRes.data || []).forEach((c: any) => {
+      if (c.email && !adminEmails.has(c.email.toLowerCase())) allEmails.add(c.email.toLowerCase());
+    });
+
+    // Clientes ATIVOS = aqueles que têm pelo menos uma reserva (booking)
+    const activeClientIds = new Set((bookingsRes.data || []).map((b: any) => b.client_id).filter(Boolean));
+    const activeEmails = new Set(
+      (clientsRes.data || []).filter((c: any) => activeClientIds.has(c.id)).map((c: any) => (c.email || "").toLowerCase())
+    );
+
     const totalRevenue = pRes.data?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0;
     const activeTrips = tRes.data?.filter(t => new Date(t.end_date) >= new Date()).length || 0;
-    setStats({ 
-      totalClients: cRes.count || 0,
-      activeClients: activeUserIds.size,
-      totalTrips: tRes.data?.length || 0, 
-      totalRevenue, 
+    setStats({
+      totalClients: allEmails.size,
+      activeClients: activeEmails.size,
+      totalTrips: tRes.data?.length || 0,
+      totalRevenue,
       activeTrips,
       pendingQueries: qRes.count || 0
     });

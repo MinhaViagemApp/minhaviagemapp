@@ -9,6 +9,8 @@ import { BusSeatPicker } from "./BusSeatPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { mcpService } from "@/services/mcpService";
+import { computePrice, validateCoupon } from "@/lib/pricing";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   open: boolean;
@@ -30,8 +32,11 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
     address: "",
     trip_id: "",
     payment_method: "pix",
-    installments: "1"
+    installments: "1",
+    coupon_code: "",
   });
+  const [couponInfo, setCouponInfo] = useState<{ code: string; discount_percent: number; cash_only: boolean } | null>(null);
+  const [couponMsg, setCouponMsg] = useState<string>("");
 
   useEffect(() => {
     if (open) {
@@ -113,9 +118,38 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
 
   // Preço base = preço da viagem × quantidade de poltronas
   const basePrice = selectedTrip ? selectedTrip.total_price * qtdSeats : 0;
-  // Total final = base + taxa do cartão (se houver)
-  const totalPrice = basePrice * (1 + cardFeePercent / 100);
-  const pricePerInstallment = totalPrice / parseInt(form.installments || "1");
+  const installmentsQty = parseInt(form.installments || "1");
+  const breakdown = computePrice({
+    base: basePrice,
+    paymentMethod: form.payment_method,
+    installments: installmentsQty,
+    creditCardFeePercent: parseFloat(selectedTrip?.credit_card_fee_percent || "0") || 0,
+    boletoFeePercent: 0,
+    couponPercent: couponInfo?.discount_percent || 0,
+    couponCashOnly: couponInfo?.cash_only ?? true,
+  });
+  const totalPrice = breakdown.total;
+  const pricePerInstallment = totalPrice / installmentsQty;
+
+  // Aplicar/remover cupom
+  const handleApplyCoupon = async () => {
+    setCouponMsg("");
+    const { coupon, error } = await validateCoupon(form.coupon_code, form.payment_method, installmentsQty);
+    if (error || !coupon) {
+      setCouponInfo(null);
+      setCouponMsg(error || "Cupom inválido.");
+      toast.error(error || "Cupom inválido.");
+      return;
+    }
+    setCouponInfo(coupon);
+    setCouponMsg(`Cupom aplicado: ${coupon.discount_percent}% de desconto.`);
+    toast.success("Cupom aplicado!");
+  };
+  const handleRemoveCoupon = () => {
+    setCouponInfo(null);
+    setCouponMsg("");
+    setForm((f) => ({ ...f, coupon_code: "" }));
+  };
 
   // Quando mudar método de pagamento, resetar parcelas para não ultrapassar o máximo
   const handlePaymentMethodChange = (method: string) => {
@@ -244,51 +278,40 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
         if (upErr) throw upErr;
       }
 
-      // 6. Gerar Parcelas — APENAS se ainda não existirem para esta trip+cliente
-      // (evita duplicação ao reabrir o modal ou em duplo clique)
+      // 6. Gerar Parcelas — sempre por (trip_id, client_id) para isolar cada cliente
       if (selectedTrip) {
         const qty = parseInt(form.installments) || 1;
         const perAmount = totalPrice / qty;
         const today = new Date();
 
-        // Checa parcelas existentes vinculadas: por user_id (se já houver perfil)
-        // ou via bookings do cliente para esta viagem
-        const { data: existingInsts } = await supabase
+        // Apaga parcelas antigas DESTE cliente nesta viagem (não afeta outros clientes)
+        await supabase
           .from("installments")
-          .select("id, user_id")
-          .eq("trip_id", selectedTrip.id);
+          .delete()
+          .eq("trip_id", selectedTrip.id)
+          .eq("client_id", clientId);
 
-        const alreadyHasInstallments = (existingInsts || []).some((i: any) =>
-          existingUserId ? i.user_id === existingUserId : true
-        ) && (existingInsts || []).length >= qty;
+        const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
+          const dueDate = new Date(today);
+          dueDate.setMonth(today.getMonth() + i);
+          return {
+            trip_id: selectedTrip.id,
+            client_id: clientId,
+            user_id: existingUserId ?? null,
+            installment_number: i + 1,
+            amount: perAmount,
+            status: "pendente",
+            payment_method: form.payment_method,
+            due_date: dueDate.toISOString().split("T")[0],
+          };
+        });
 
-        if (!alreadyHasInstallments) {
-          // Limpa parcelas antigas órfãs deste mesmo user_id (se houver) para
-          // evitar mistura de planos antigos com o atual
-          if (existingUserId && (existingInsts || []).length > 0) {
-            await supabase
-              .from("installments")
-              .delete()
-              .eq("trip_id", selectedTrip.id)
-              .eq("user_id", existingUserId);
-          }
+        const { error: instError } = await supabase.from("installments").insert(installmentsToInsert as any);
+        if (instError) throw instError;
 
-          const installmentsToInsert = Array.from({ length: qty }, (_, i) => {
-            const dueDate = new Date(today);
-            dueDate.setMonth(today.getMonth() + i);
-            return {
-              trip_id: selectedTrip.id,
-              user_id: existingUserId ?? null,
-              installment_number: i + 1,
-              amount: perAmount,
-              status: "pendente",
-              payment_method: form.payment_method,
-              due_date: dueDate.toISOString().split("T")[0],
-            };
-          });
-
-          const { error: instError } = await supabase.from("installments").insert(installmentsToInsert);
-          if (instError) throw instError;
+        // Consumir cupom se aplicado
+        if (couponInfo?.code) {
+          await (supabase as any).rpc("consume_coupon", { _code: couponInfo.code });
         }
       }
 
@@ -319,7 +342,9 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
   };
 
   const resetForm = () => {
-    setForm({ name: "", email: "", cpf: "", phone: "", address: "", trip_id: "", payment_method: "pix", installments: "1" });
+    setForm({ name: "", email: "", cpf: "", phone: "", address: "", trip_id: "", payment_method: "pix", installments: "1", coupon_code: "" });
+    setCouponInfo(null);
+    setCouponMsg("");
     setSelectedSeats([]);
     setSaleSeatData([]);
   };
@@ -392,6 +417,37 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                 </Select>
               </div>
 
+              {/* Cupom de desconto */}
+              <div className="space-y-2 mt-3">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Cupom de desconto</Label>
+                {couponInfo ? (
+                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2">
+                    <div className="text-xs">
+                      <span className="font-bold text-emerald-400">{couponInfo.code}</span>{" "}
+                      <span className="text-muted-foreground">({couponInfo.discount_percent}% off)</span>
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" className="h-7" onClick={handleRemoveCoupon}>
+                      Remover
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Digite o código"
+                      value={form.coupon_code}
+                      onChange={(e) => setForm({ ...form, coupon_code: e.target.value.toUpperCase() })}
+                      className="bg-background"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={handleApplyCoupon} disabled={!form.coupon_code}>
+                      Aplicar
+                    </Button>
+                  </div>
+                )}
+                {couponMsg && !couponInfo && (
+                  <p className="text-[11px] text-rose-400">{couponMsg}</p>
+                )}
+              </div>
+
               {/* Aviso de regra */}
               {form.payment_method === "boleto" && selectedTrip && (
                 <div className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-400 p-2 rounded-lg">
@@ -421,6 +477,12 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                     <span className="text-muted-foreground">Poltronas selecionadas:</span>
                     <span className="font-bold text-primary">{Math.max(selectedSeats.length, 0)}</span>
                   </div>
+                  {couponInfo && breakdown.discountAmount > 0 && (
+                    <div className="flex justify-between text-emerald-400">
+                      <span>Desconto cupom ({couponInfo.discount_percent}%):</span>
+                      <span className="font-bold">-{fmt(breakdown.discountAmount)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between border-t border-white/10 pt-1 mt-1">
                     <span className="font-bold">Total:</span>
                     <span className="font-black text-emerald-400 text-base">{fmt(totalPrice)}</span>

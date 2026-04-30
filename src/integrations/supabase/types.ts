@@ -267,6 +267,7 @@ export type Database = {
       installments: {
         Row: {
           amount: number
+          client_id: string | null
           created_at: string
           due_date: string
           id: string
@@ -280,6 +281,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          client_id?: string | null
           created_at?: string
           due_date: string
           id?: string
@@ -293,6 +295,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          client_id?: string | null
           created_at?: string
           due_date?: string
           id?: string
@@ -305,6 +308,13 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "installments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "installments_trip_id_fkey"
             columns: ["trip_id"]

@@ -37,7 +37,7 @@ export default function ClientPayments() {
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      // Resolver client_id pelo email + trip_queries do usuário
+      // 1. Resolver client_id pelo email (cadastro feito pelo admin) e profile do usuário
       const [clientRowRes, queriesRes, adminsRes] = await Promise.all([
         user.email
           ? supabase.from("clients").select("id").eq("email", user.email).maybeSingle()
@@ -50,7 +50,7 @@ export default function ClientPayments() {
         supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1),
       ]);
 
-      const clientId = (clientRowRes as any)?.data?.id;
+      const clientId = (clientRowRes as any)?.data?.id as string | undefined;
       const tripMethodMap = new Map<string, string>();
       (queriesRes.data || []).forEach((q: any) => {
         if (q.trip_id) tripMethodMap.set(q.trip_id, q.payment_method);
@@ -75,21 +75,21 @@ export default function ClientPayments() {
         return;
       }
 
+      // Busca parcelas: prioriza por client_id (mais confiável); fallback por user_id
+      const instsQuery = clientId
+        ? supabase.from("installments").select("*").in("trip_id", tripIds).or(`client_id.eq.${clientId},user_id.eq.${user.id}`)
+        : supabase.from("installments").select("*").in("trip_id", tripIds).eq("user_id", user.id);
+
       const [tripsRes, instsRes, paysRes, pixRes] = await Promise.all([
         supabase.from("trips").select("id, destination, start_date, end_date, total_price").in("id", tripIds),
-        // Busca parcelas e filtra: do próprio user_id OU sem user_id (criadas pelo admin antes do signup)
-        supabase
-          .from("installments")
-          .select("*")
-          .in("trip_id", tripIds)
-          .or(`user_id.eq.${user.id},user_id.is.null`),
+        instsQuery,
         supabase.from("payments").select("trip_id, amount_paid").in("trip_id", tripIds),
         adminsRes.data?.[0]?.user_id
           ? supabase.from("profiles").select("pix_key").eq("id", adminsRes.data[0].user_id).maybeSingle()
           : Promise.resolve({ data: null } as any),
       ]);
 
-      // Deduplica por id para evitar linhas repetidas
+      // Deduplica por id
       const seenIds = new Set<string>();
       const uniqueInsts = (instsRes.data || []).filter((i: any) => {
         if (seenIds.has(i.id)) return false;
@@ -101,7 +101,6 @@ export default function ClientPayments() {
       uniqueInsts.forEach((i: any) => {
         (instsByTrip[i.trip_id] ||= []).push(i);
       });
-      // Ordena cada grupo por installment_number
       Object.values(instsByTrip).forEach((arr) =>
         arr.sort((a: any, b: any) => (a.installment_number || 0) - (b.installment_number || 0))
       );
