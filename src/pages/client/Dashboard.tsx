@@ -308,6 +308,13 @@ export default function ClientDashboard() {
 
     const triggerCelebration = async (tripId: string, sourceId: string) => {
       if (celebratedRef.current.has(sourceId)) return;
+      // Bloqueia se já foi mostrado anteriormente neste navegador
+      try {
+        if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${sourceId}`)) {
+          celebratedRef.current.add(sourceId);
+          return;
+        }
+      } catch {}
       celebratedRef.current.add(sourceId);
       try { localStorage.setItem(`approval-shown-${sourceId}`, "1"); } catch {}
       celebrateApproval();
