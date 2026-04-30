@@ -663,11 +663,15 @@ export default function ClientDashboard() {
                 onClick={() => setSelectedPublicTrip(t)}
               >
                 <div className="h-44 w-full relative overflow-hidden">
-                  {(t as any).preview_image ? (
-                    <img src={(t as any).preview_image} alt={t.destination} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="flex items-center justify-center h-full bg-secondary/30"><Plane className="h-10 w-10 text-muted-foreground/30" /></div>
-                  )}
+                  <ImageAutoCarousel
+                    images={(t as any).images_list || ((t as any).preview_image ? [(t as any).preview_image] : [])}
+                    alt={t.destination}
+                    className="w-full h-full"
+                    imgClassName="h-44 group-hover:scale-105 transition-transform duration-500"
+                    fallback={
+                      <div className="flex items-center justify-center h-full bg-secondary/30"><Plane className="h-10 w-10 text-muted-foreground/30" /></div>
+                    }
+                  />
                 </div>
                 <CardHeader className="pb-2 pt-3">
                   <CardTitle className="flex items-center gap-2 text-lg font-black group-hover:text-primary transition-colors">
@@ -710,12 +714,16 @@ export default function ClientDashboard() {
             {promotions.map((promo) => (
               <Card key={promo.id} className="glass animate-fade-in overflow-hidden hover:scale-[1.02] transition-transform border-accent/20 group">
                 <div className="h-44 w-full relative overflow-hidden">
-                  {promo.preview_image ? (
-                    <img src={promo.preview_image} alt={promo.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  ) : (
-                    <div className="bg-secondary/30 h-full flex items-center justify-center"><Tag className="h-10 w-10 text-muted-foreground/30" /></div>
-                  )}
-                  <div className="absolute top-3 left-3 bg-accent text-white text-[10px] font-black px-2 py-1 rounded shadow-lg">OFERTA</div>
+                  <ImageAutoCarousel
+                    images={(promo as any).images_list || ((promo as any).preview_image ? [(promo as any).preview_image] : [])}
+                    alt={promo.title}
+                    className="w-full h-full"
+                    imgClassName="h-44 group-hover:scale-105 transition-transform duration-500"
+                    fallback={
+                      <div className="bg-secondary/30 h-full flex items-center justify-center"><Tag className="h-10 w-10 text-muted-foreground/30" /></div>
+                    }
+                  />
+                  <div className="absolute top-3 left-3 bg-accent text-white text-[10px] font-black px-2 py-1 rounded shadow-lg z-10">OFERTA</div>
                 </div>
                 <CardHeader className="pb-2 pt-3">
                   <CardTitle className="flex items-center gap-2 text-lg font-black group-hover:text-accent transition-colors">
