@@ -9,6 +9,8 @@ import { BusSeatPicker } from "./BusSeatPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { mcpService } from "@/services/mcpService";
+import { computePrice, validateCoupon } from "@/lib/pricing";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   open: boolean;
