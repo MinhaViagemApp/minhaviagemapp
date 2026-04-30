@@ -417,6 +417,37 @@ export function NewSaleModal({ open, onOpenChange, onSuccess }: Props) {
                 </Select>
               </div>
 
+              {/* Cupom de desconto */}
+              <div className="space-y-2 mt-3">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Cupom de desconto</Label>
+                {couponInfo ? (
+                  <div className="flex items-center justify-between bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-2">
+                    <div className="text-xs">
+                      <span className="font-bold text-emerald-400">{couponInfo.code}</span>{" "}
+                      <span className="text-muted-foreground">({couponInfo.discount_percent}% off)</span>
+                    </div>
+                    <Button type="button" size="sm" variant="ghost" className="h-7" onClick={handleRemoveCoupon}>
+                      Remover
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Digite o código"
+                      value={form.coupon_code}
+                      onChange={(e) => setForm({ ...form, coupon_code: e.target.value.toUpperCase() })}
+                      className="bg-background"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={handleApplyCoupon} disabled={!form.coupon_code}>
+                      Aplicar
+                    </Button>
+                  </div>
+                )}
+                {couponMsg && !couponInfo && (
+                  <p className="text-[11px] text-rose-400">{couponMsg}</p>
+                )}
+              </div>
+
               {/* Aviso de regra */}
               {form.payment_method === "boleto" && selectedTrip && (
                 <div className="text-xs bg-amber-500/10 border border-amber-500/30 text-amber-400 p-2 rounded-lg">
