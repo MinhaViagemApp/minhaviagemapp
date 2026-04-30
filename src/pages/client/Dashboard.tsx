@@ -13,6 +13,7 @@ import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
 import { celebrateApproval } from "@/lib/celebrate";
 import { computePrice, validateCoupon, type ValidatedCoupon } from "@/lib/pricing";
+import { ImageAutoCarousel } from "@/components/ImageAutoCarousel";
 import { 
   MessageCircle, 
   Info, 
@@ -190,10 +191,14 @@ export default function ClientDashboard() {
         .gte("end_date", new Date().toISOString().split("T")[0])
         .order("start_date", { ascending: true });
       
-      setPublicTrips((pTrips || []).map(t => ({
-        ...t,
-        preview_image: (t as any).trip_images?.[0]?.image_url || null
-      })));
+      setPublicTrips((pTrips || []).map(t => {
+        const imgs = ((t as any).trip_images || []).map((i: any) => i.image_url).filter(Boolean);
+        return {
+          ...t,
+          preview_image: imgs[0] || null,
+          images_list: imgs,
+        };
+      }));
 
       // Fetch promotions
       const { data: promos } = await supabase
@@ -203,10 +208,14 @@ export default function ClientDashboard() {
         .gte("expires_at", new Date().toISOString())
         .order("created_at", { ascending: false });
       
-      setPromotions((promos || []).map(p => ({
-        ...p,
-        preview_image: (p as any).promotion_images?.[0]?.image_url || null
-      })));
+      setPromotions((promos || []).map(p => {
+        const imgs = ((p as any).promotion_images || []).map((i: any) => i.image_url).filter(Boolean);
+        return {
+          ...p,
+          preview_image: imgs[0] || null,
+          images_list: imgs,
+        };
+      }));
 
       // Fetch admin info (PIX and Phone)
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1);
