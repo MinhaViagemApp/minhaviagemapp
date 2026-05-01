@@ -145,11 +145,9 @@ export default function ClientDashboard() {
           setBookedSeat(String(confirmedQuery.seat_number));
         }
 
-        // Celebração persistente: se ainda não mostramos o confetti para esta query, mostra agora
-        const flagKey = `approval-shown-${confirmedQuery.id}`;
-        if (typeof window !== "undefined" && !localStorage.getItem(flagKey)) {
-          celebratedRef.current.add(confirmedQuery.id);
-          localStorage.setItem(flagKey, "1");
+        // Celebração: se ainda não mostramos o confetti para esta query
+        if (!alreadyCelebrated(confirmedQuery.id)) {
+          markCelebrated(confirmedQuery.id);
           setTimeout(() => {
             celebrateApproval();
             setApprovalModal({
@@ -157,9 +155,6 @@ export default function ClientDashboard() {
               destination: activeTrip?.destination || "sua próxima viagem",
             });
           }, 600);
-        } else {
-          // já mostrado antes — apenas marca como celebrado pra evitar duplicidade no realtime
-          celebratedRef.current.add(confirmedQuery.id);
         }
       }
 
@@ -242,20 +237,15 @@ export default function ClientDashboard() {
               .eq("status", "confirmada")
               .eq("notification_shown", false);
             for (const b of (pendingBookings || []) as any[]) {
-              if (celebratedRef.current.has(b.id)) continue;
-              // Já mostrado anteriormente neste navegador? marca e segue.
-              try {
-                if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${b.id}`)) {
-                  celebratedRef.current.add(b.id);
-                  await (supabase as any)
-                    .from("bookings")
-                    .update({ notification_shown: true })
-                    .eq("id", b.id);
-                  continue;
-                }
-              } catch {}
-              celebratedRef.current.add(b.id);
-              try { localStorage.setItem(`approval-shown-${b.id}`, "1"); } catch {}
+              if (alreadyCelebrated(b.id)) {
+                // Garante que o DB também saiba que já foi mostrado
+                await (supabase as any)
+                  .from("bookings")
+                  .update({ notification_shown: true })
+                  .eq("id", b.id);
+                continue;
+              }
+              markCelebrated(b.id);
               const { data: t } = await supabase
                 .from("trips")
                 .select("destination")
@@ -289,6 +279,23 @@ export default function ClientDashboard() {
 
   // Realtime: detecta aprovação de pré-reserva, dispara confetti e abre modal com CTA
   const celebratedRef = useRef<Set<string>>(new Set());
+
+  // Helper: verifica se já celebrou este id (localStorage é a fonte de verdade)
+  const alreadyCelebrated = (sourceId: string): boolean => {
+    if (celebratedRef.current.has(sourceId)) return true;
+    try {
+      if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${sourceId}`)) {
+        celebratedRef.current.add(sourceId);
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
+  const markCelebrated = (sourceId: string) => {
+    celebratedRef.current.add(sourceId);
+    try { localStorage.setItem(`approval-shown-${sourceId}`, "1"); } catch {}
+  };
   const refetchActiveTrip = async () => {
     if (!user) return;
     const today = new Date().toISOString().split("T")[0];
@@ -318,16 +325,8 @@ export default function ClientDashboard() {
     if (!user) return;
 
     const triggerCelebration = async (tripId: string, sourceId: string) => {
-      if (celebratedRef.current.has(sourceId)) return;
-      // Bloqueia se já foi mostrado anteriormente neste navegador
-      try {
-        if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${sourceId}`)) {
-          celebratedRef.current.add(sourceId);
-          return;
-        }
-      } catch {}
-      celebratedRef.current.add(sourceId);
-      try { localStorage.setItem(`approval-shown-${sourceId}`, "1"); } catch {}
+      if (alreadyCelebrated(sourceId)) return;
+      markCelebrated(sourceId);
       celebrateApproval();
       const { data: t } = await supabase
         .from("trips")
