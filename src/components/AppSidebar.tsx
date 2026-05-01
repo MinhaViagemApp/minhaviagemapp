@@ -45,9 +45,13 @@ const clientItems = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { userRole, signOut } = useAuth();
+
+  const handleNavClick = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const items = userRole === "admin" ? adminItems : clientItems;
 
@@ -70,6 +74,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/admin" || item.url === "/client"}
+                      onClick={handleNavClick}
                       className="hover:bg-primary/10 transition-colors rounded-lg"
                       activeClassName="bg-primary/20 text-primary font-medium"
                     >
@@ -87,7 +92,7 @@ export function AppSidebar() {
         <Button
           variant="ghost"
           className="w-full justify-start text-muted-foreground hover:text-destructive"
-          onClick={signOut}
+          onClick={() => { handleNavClick(); signOut(); }}
         >
           <LogOut className="mr-2 h-4 w-4" />
           {!collapsed && <span>Sair</span>}
