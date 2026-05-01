@@ -326,12 +326,12 @@ export default function AdminClients() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-muted-foreground">Gerencie seus clientes e parcelas</p>
         </div>
-        <Button onClick={() => setSaleModalOpen(true)} className="gradient-accent text-white font-bold tracking-wide">
+        <Button onClick={() => setSaleModalOpen(true)} className="gradient-accent text-white font-bold tracking-wide w-full sm:w-auto">
           <UserPlus className="mr-2 h-4 w-4" /> Adicionar Cliente
         </Button>
       </div>
@@ -351,6 +351,7 @@ export default function AdminClients() {
       </Dialog>
 
       <div className="glass rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-border/50">
@@ -524,6 +525,7 @@ export default function AdminClients() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );

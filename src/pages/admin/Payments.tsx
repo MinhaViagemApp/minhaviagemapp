@@ -311,6 +311,7 @@ export default function AdminPayments() {
         <div className="p-4 border-b border-border/50 bg-background/50">
           <h2 className="font-bold">Listagem de Recebimentos / Parcelas</h2>
         </div>
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-border/50">
@@ -363,6 +364,7 @@ export default function AdminPayments() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
 
       <NewExpenseModal 
