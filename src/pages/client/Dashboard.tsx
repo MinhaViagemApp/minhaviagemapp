@@ -289,6 +289,23 @@ export default function ClientDashboard() {
 
   // Realtime: detecta aprovação de pré-reserva, dispara confetti e abre modal com CTA
   const celebratedRef = useRef<Set<string>>(new Set());
+
+  // Helper: verifica se já celebrou este id (localStorage é a fonte de verdade)
+  const alreadyCelebrated = (sourceId: string): boolean => {
+    if (celebratedRef.current.has(sourceId)) return true;
+    try {
+      if (typeof window !== "undefined" && localStorage.getItem(`approval-shown-${sourceId}`)) {
+        celebratedRef.current.add(sourceId);
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
+  const markCelebrated = (sourceId: string) => {
+    celebratedRef.current.add(sourceId);
+    try { localStorage.setItem(`approval-shown-${sourceId}`, "1"); } catch {}
+  };
   const refetchActiveTrip = async () => {
     if (!user) return;
     const today = new Date().toISOString().split("T")[0];
