@@ -525,6 +525,7 @@ export default function AdminClients() {
             )}
           </TableBody>
         </Table>
+        </div>
       </div>
     </div>
   );
