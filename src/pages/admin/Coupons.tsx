@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { sendNotification } from "@/lib/notify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,13 @@ export default function AdminCoupons() {
     setSaving(false);
     if (error) { toast.error(error.message); return; }
     toast.success("Cupom criado!");
+    void sendNotification({
+      title: "Novo cupom de desconto! 🎟️",
+      body: `Use o código ${form.code.trim().toUpperCase()} e ganhe ${pct}% de desconto.`,
+      url: "/client/promotions",
+      tag: `coupon-${form.code.trim().toUpperCase()}`,
+      broadcast: true,
+    });
     setForm(empty);
     setOpen(false);
     load();

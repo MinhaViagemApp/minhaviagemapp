@@ -11,6 +11,7 @@ import { Plus, MapPin, Calendar, Pencil, Image, X, Loader2, Trash2, Archive } fr
 import { ImageAutoCarousel } from "@/components/ImageAutoCarousel";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { sendNotification } from "@/lib/notify";
 
 interface Trip {
   id: string;
@@ -182,6 +183,13 @@ export default function AdminTrips() {
       }
 
       toast.success("Viagem criada com sucesso!");
+      void sendNotification({
+        title: "Nova viagem disponível! ✈️",
+        body: `${trip.destination} — confira agora os detalhes.`,
+        url: "/client",
+        tag: `trip-${trip.id}`,
+        broadcast: true,
+      });
     }
     setIsCreating(false);
     setSelectedFiles([]);

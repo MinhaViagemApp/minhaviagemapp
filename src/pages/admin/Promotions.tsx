@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Tag, Calendar, Image, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { sendNotification } from "@/lib/notify";
 
 interface Promotion {
   id: string;
@@ -87,6 +88,13 @@ export default function AdminPromotions() {
     }
 
     toast.success("Promoção criada com sucesso!");
+    void sendNotification({
+      title: "Nova promoção disponível! 🎉",
+      body: form.title || "Confira agora a nova promoção.",
+      url: "/client/promotions",
+      tag: `promo-${promo.id}`,
+      broadcast: true,
+    });
     setOpen(false);
     setForm(emptyPromotionForm);
     localStorage.removeItem(PROMOTION_DRAFT_KEY);
