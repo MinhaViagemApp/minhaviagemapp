@@ -213,6 +213,18 @@ export default function ClientDashboard() {
         };
       }));
 
+      // Fetch active coupons
+      const { data: cps } = await (supabase as any)
+        .from("coupons")
+        .select("id, code, discount_percent, expires_at, cash_only, active, usage_limit, usage_count")
+        .eq("active", true)
+        .order("created_at", { ascending: false });
+      setActiveCoupons((cps || []).filter((c: any) => {
+        if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
+        if (c.usage_limit && c.usage_count >= c.usage_limit) return false;
+        return true;
+      }));
+
       // Fetch admin info (PIX and Phone)
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1);
       if (admins?.[0]) {
