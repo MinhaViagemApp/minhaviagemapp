@@ -58,6 +58,7 @@ export default function ClientDashboard() {
   const [activeQuery, setActiveQuery] = useState<{ payment_method: string; installments: number; coupon_code: string | null } | null>(null);
   const [publicTrips, setPublicTrips] = useState<Trip[]>([]);
   const [promotions, setPromotions] = useState<any[]>([]);
+  const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [selectedPublicTrip, setSelectedPublicTrip] = useState<Trip | null>(null);
   const [adminPhone, setAdminPhone] = useState("");
 
