@@ -768,8 +768,19 @@ export default function ClientDashboard() {
                       <Calendar className="h-3 w-3 text-foreground" />
                       Até {(() => { try { return new Date(promo.expires_at).toLocaleDateString("pt-BR"); } catch { return "—"; } })()}
                     </div>
-                    <Button variant="ghost" size="sm" className="text-xs text-accent font-black h-7 hover:bg-accent/10">
-                      Ver Detalhes
+                    <Button
+                      size="sm"
+                      className="text-xs font-black h-8 gradient-accent text-white"
+                      onClick={() => {
+                        const first = publicTrips[0];
+                        if (first) {
+                          setSelectedPublicTrip(first);
+                        } else {
+                          toast.info("Em breve novas viagens disponíveis!");
+                        }
+                      }}
+                    >
+                      Aproveitar agora
                     </Button>
                   </div>
                 </CardContent>
@@ -778,6 +789,44 @@ export default function ClientDashboard() {
             {promotions.length === 0 && (
               <div className="text-center py-10 glass rounded-2xl border-dashed border-border/50">
                 <p className="text-muted-foreground italic text-sm">Aguarde nossas próximas ofertas!</p>
+              </div>
+            )}
+
+            {/* Cupons ativos */}
+            {activeCoupons.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <h3 className="text-lg font-black flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-accent" />
+                  Cupons Ativos
+                </h3>
+                {activeCoupons.map((c) => (
+                  <Card key={c.id} className="glass overflow-hidden border-accent/30 animate-fade-in">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-4 w-4 text-accent" />
+                          <span className="font-mono font-black text-base">{c.code}</span>
+                        </div>
+                        <p className="text-2xl font-black text-accent leading-none">{c.discount_percent}% OFF</p>
+                        <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                          {c.cash_only ? "Apenas à vista" : "Qualquer pagamento"}
+                          {c.expires_at ? ` • até ${new Date(c.expires_at).toLocaleDateString("pt-BR")}` : ""}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="gradient-accent text-white font-black h-9 text-xs whitespace-nowrap"
+                        onClick={async () => {
+                          try { await navigator.clipboard.writeText(c.code); toast.success(`Cupom ${c.code} copiado!`); } catch {}
+                          const first = publicTrips[0];
+                          if (first) setSelectedPublicTrip(first);
+                        }}
+                      >
+                        Aproveitar agora
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
               </div>
             )}
           </div>
