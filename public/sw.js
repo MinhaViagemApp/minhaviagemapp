@@ -54,12 +54,28 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Fallback de navegação para evitar 404 quando a PWA é aberta direto numa rota interna
+// Fallback de navegação para evitar 404 quando a PWA é aberta direto numa rota interna.
+// IMPORTANTE: nunca interceptar rotas de OAuth (/~oauth/*) — elas precisam ir direto para a rede
+// para o broker do Lovable Cloud processar o callback do Google/Apple/etc.
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.mode === "navigate") {
-    event.respondWith(
-      fetch(req).catch(() => caches.match("/") || fetch("/"))
-    );
+  if (req.mode !== "navigate") return;
+
+  const url = new URL(req.url);
+
+  // Deixa passar fluxos de autenticação e callbacks especiais sem tocar
+  if (
+    url.pathname.startsWith("/~oauth") ||
+    url.pathname.startsWith("/auth/") ||
+    url.pathname.includes("/callback") ||
+    url.hash.includes("access_token") ||
+    url.search.includes("code=") ||
+    url.search.includes("error=")
+  ) {
+    return;
   }
+
+  event.respondWith(
+    fetch(req).catch(async () => (await caches.match("/")) || fetch("/"))
+  );
 });
