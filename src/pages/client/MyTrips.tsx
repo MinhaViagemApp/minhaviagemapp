@@ -193,7 +193,7 @@ export default function MyTrips() {
               </CardHeader>
               <CardContent className="space-y-6">
                 {/* Detalhes da viagem */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div className="bg-secondary/40 rounded-lg p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                       <Armchair className="h-3 w-3" /> Poltrona
@@ -204,21 +204,14 @@ export default function MyTrips() {
                   </div>
                   <div className="bg-secondary/40 rounded-lg p-3">
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                      <User className="h-3 w-3" /> Passageiro
-                    </p>
-                    <p className="text-sm font-black text-foreground truncate">
-                      {trip.passenger_name || "—"}
-                    </p>
-                  </div>
-                  <div className="bg-secondary/40 rounded-lg p-3">
-                    <p className="text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                       <MethodIcon m={method} /> Pagamento
                     </p>
                     <p className="text-sm font-black text-foreground">
-                      {methodLabel(method)}
-                      {method !== "pix" && installmentsCount > 1 && (
-                        <span className="text-xs font-bold text-muted-foreground"> • {installmentsCount}x</span>
-                      )}
+                      {method === "boleto"
+                        ? `Boleto${installmentsCount > 1 ? ` ${installmentsCount}x` : ""}`
+                        : method === "cartao"
+                          ? `Cartão • Pago${installmentsCount > 1 ? ` (${installmentsCount}x)` : ""}`
+                          : "Pix • Pago"}
                     </p>
                   </div>
                   <div className="bg-secondary/40 rounded-lg p-3">
