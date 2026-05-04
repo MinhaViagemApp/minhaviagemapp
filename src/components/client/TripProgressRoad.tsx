@@ -136,11 +136,7 @@ export function TripProgressRoad({ createdAt, startDate, label }: TripProgressRo
 
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{label || "Sua viagem está a caminho"}</span>
-        <span className="font-semibold text-foreground">
-          {arrived
-            ? "Hoje é o dia! 🎉"
-            : `${daysLeft} ${daysLeft === 1 ? "dia restante" : "dias restantes"}`}
-        </span>
+        {arrived && <span className="font-semibold text-foreground">Hoje é o dia! 🎉</span>}
       </div>
 
     </div>
