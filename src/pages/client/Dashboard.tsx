@@ -446,9 +446,58 @@ export default function ClientDashboard() {
         .subscribe();
     })();
 
+    // Canal 3: novas promoções e cupons → buzina + popup
+    const offersChannel = supabase
+      .channel(`client-offers-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "promotions" },
+        (payload: any) => {
+          const p = payload.new;
+          if (!p || p.draft_status !== "published") return;
+          const id = `promo:${p.id}`;
+          if (seenOffersRef.current.has(id)) return;
+          seenOffersRef.current.add(id);
+          try {
+            const SEEN_KEY = "client-offers-seen";
+            const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+            localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, id]))));
+          } catch {}
+          playBusHorn();
+          setOfferModal({ open: true, type: "promotion", title: p.title, subtitle: "Nova promoção disponível!" });
+          setPromotions((prev) => [{ ...p, images_list: [], preview_image: null }, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "coupons" },
+        (payload: any) => {
+          const c = payload.new;
+          if (!c || !c.active) return;
+          const id = `coupon:${c.id}`;
+          if (seenOffersRef.current.has(id)) return;
+          seenOffersRef.current.add(id);
+          try {
+            const SEEN_KEY = "client-offers-seen";
+            const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+            localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, id]))));
+          } catch {}
+          playBusHorn();
+          setOfferModal({
+            open: true,
+            type: "coupon",
+            title: `${c.code} • ${c.discount_percent}% OFF`,
+            subtitle: "Novo cupom de desconto!",
+          });
+          setActiveCoupons((prev) => [c, ...prev]);
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(queriesChannel);
       if (bookingsChannel) supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(offersChannel);
     };
   }, [user]);
 
