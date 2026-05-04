@@ -228,6 +228,40 @@ export default function ClientDashboard() {
         return true;
       }));
 
+      // Detecta novas promoções/cupons (vs localStorage) e dispara buzina + popup
+      try {
+        const SEEN_KEY = "client-offers-seen";
+        const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+        const seenSet = new Set(seen);
+        const newPromo = (promos || []).find((p: any) => !seenSet.has(`promo:${p.id}`));
+        const activeCps = (cps || []).filter((c: any) => {
+          if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
+          if (c.usage_limit && c.usage_count >= c.usage_limit) return false;
+          return true;
+        });
+        const newCoupon = activeCps.find((c: any) => !seenSet.has(`coupon:${c.id}`));
+        const offer = newPromo
+          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!" }
+          : newCoupon
+          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!" }
+          : null;
+        // Marca todos como vistos
+        const allIds = [
+          ...((promos || []).map((p: any) => `promo:${p.id}`)),
+          ...activeCps.map((c: any) => `coupon:${c.id}`),
+        ];
+        localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, ...allIds]))));
+        if (offer && !seenOffersRef.current.has(offer.id)) {
+          seenOffersRef.current.add(offer.id);
+          setTimeout(() => {
+            playBusHorn();
+            setOfferModal({ open: true, type: offer.type, title: offer.title, subtitle: offer.subtitle });
+          }, 800);
+        }
+      } catch (e) {
+        console.warn("offer detection error", e);
+      }
+
       // Fetch admin info (PIX and Phone)
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1);
       if (admins?.[0]) {
