@@ -12,6 +12,7 @@ import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
 import { celebrateApproval } from "@/lib/celebrate";
+import { playBusHorn } from "@/lib/busHorn";
 import { computePrice, validateCoupon, type ValidatedCoupon } from "@/lib/pricing";
 import { ImageAutoCarousel } from "@/components/ImageAutoCarousel";
 import { 
@@ -61,6 +62,8 @@ export default function ClientDashboard() {
   const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [selectedPublicTrip, setSelectedPublicTrip] = useState<Trip | null>(null);
   const [adminPhone, setAdminPhone] = useState("");
+  const [offerModal, setOfferModal] = useState<{ open: boolean; type: "promotion" | "coupon"; title: string; subtitle: string }>({ open: false, type: "promotion", title: "", subtitle: "" });
+  const seenOffersRef = useRef<Set<string>>(new Set());
 
   const [bookingForm, setBookingForm] = useState({
     paymentMethod: "pix",
@@ -224,6 +227,40 @@ export default function ClientDashboard() {
         if (c.usage_limit && c.usage_count >= c.usage_limit) return false;
         return true;
       }));
+
+      // Detecta novas promoções/cupons (vs localStorage) e dispara buzina + popup
+      try {
+        const SEEN_KEY = "client-offers-seen";
+        const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+        const seenSet = new Set(seen);
+        const newPromo = (promos || []).find((p: any) => !seenSet.has(`promo:${p.id}`));
+        const activeCps = (cps || []).filter((c: any) => {
+          if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
+          if (c.usage_limit && c.usage_count >= c.usage_limit) return false;
+          return true;
+        });
+        const newCoupon = activeCps.find((c: any) => !seenSet.has(`coupon:${c.id}`));
+        const offer = newPromo
+          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!" }
+          : newCoupon
+          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!" }
+          : null;
+        // Marca todos como vistos
+        const allIds = [
+          ...((promos || []).map((p: any) => `promo:${p.id}`)),
+          ...activeCps.map((c: any) => `coupon:${c.id}`),
+        ];
+        localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, ...allIds]))));
+        if (offer && !seenOffersRef.current.has(offer.id)) {
+          seenOffersRef.current.add(offer.id);
+          setTimeout(() => {
+            playBusHorn();
+            setOfferModal({ open: true, type: offer.type, title: offer.title, subtitle: offer.subtitle });
+          }, 800);
+        }
+      } catch (e) {
+        console.warn("offer detection error", e);
+      }
 
       // Fetch admin info (PIX and Phone)
       const { data: admins } = await supabase.from("user_roles").select("user_id").eq("role", "admin").limit(1);
@@ -409,9 +446,58 @@ export default function ClientDashboard() {
         .subscribe();
     })();
 
+    // Canal 3: novas promoções e cupons → buzina + popup
+    const offersChannel = supabase
+      .channel(`client-offers-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "promotions" },
+        (payload: any) => {
+          const p = payload.new;
+          if (!p || p.draft_status !== "published") return;
+          const id = `promo:${p.id}`;
+          if (seenOffersRef.current.has(id)) return;
+          seenOffersRef.current.add(id);
+          try {
+            const SEEN_KEY = "client-offers-seen";
+            const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+            localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, id]))));
+          } catch {}
+          playBusHorn();
+          setOfferModal({ open: true, type: "promotion", title: p.title, subtitle: "Nova promoção disponível!" });
+          setPromotions((prev) => [{ ...p, images_list: [], preview_image: null }, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "coupons" },
+        (payload: any) => {
+          const c = payload.new;
+          if (!c || !c.active) return;
+          const id = `coupon:${c.id}`;
+          if (seenOffersRef.current.has(id)) return;
+          seenOffersRef.current.add(id);
+          try {
+            const SEEN_KEY = "client-offers-seen";
+            const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
+            localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, id]))));
+          } catch {}
+          playBusHorn();
+          setOfferModal({
+            open: true,
+            type: "coupon",
+            title: `${c.code} • ${c.discount_percent}% OFF`,
+            subtitle: "Novo cupom de desconto!",
+          });
+          setActiveCoupons((prev) => [c, ...prev]);
+        }
+      )
+      .subscribe();
+
     return () => {
       supabase.removeChannel(queriesChannel);
       if (bookingsChannel) supabase.removeChannel(bookingsChannel);
+      supabase.removeChannel(offersChannel);
     };
   }, [user]);
 
@@ -1068,6 +1154,44 @@ export default function ClientDashboard() {
                 size="sm"
                 onClick={() => setApprovalModal({ open: false, destination: "" })}
               >
+                Continuar navegando
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Oferta Especial — buzina de ônibus + CTA */}
+      <Dialog open={offerModal.open} onOpenChange={(o) => setOfferModal((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-md glass-strong border-accent/40">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black gradient-primary-text text-center">
+              🚌 Oferta Especial pra você!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2 text-center">
+            <div className="mx-auto bg-accent/15 border border-accent/40 rounded-full p-4 w-20 h-20 flex items-center justify-center animate-scale-in">
+              <Tag className="h-10 w-10 text-accent" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm uppercase font-black tracking-widest text-muted-foreground">{offerModal.subtitle}</p>
+              <p className="font-bold text-lg text-foreground">{offerModal.title}</p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                size="lg"
+                className="w-full gradient-accent text-white font-black"
+                onClick={() => {
+                  setOfferModal((s) => ({ ...s, open: false }));
+                  if (offerModal.type === "promotion") {
+                    const first = publicTrips[0];
+                    if (first) setSelectedPublicTrip(first);
+                  }
+                }}
+              >
+                Aproveitar agora →
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setOfferModal((s) => ({ ...s, open: false }))}>
                 Continuar navegando
               </Button>
             </div>
