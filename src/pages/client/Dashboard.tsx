@@ -1160,6 +1160,44 @@ export default function ClientDashboard() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Oferta Especial — buzina de ônibus + CTA */}
+      <Dialog open={offerModal.open} onOpenChange={(o) => setOfferModal((s) => ({ ...s, open: o }))}>
+        <DialogContent className="max-w-md glass-strong border-accent/40">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black gradient-primary-text text-center">
+              🚌 Oferta Especial pra você!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2 text-center">
+            <div className="mx-auto bg-accent/15 border border-accent/40 rounded-full p-4 w-20 h-20 flex items-center justify-center animate-scale-in">
+              <Tag className="h-10 w-10 text-accent" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm uppercase font-black tracking-widest text-muted-foreground">{offerModal.subtitle}</p>
+              <p className="font-bold text-lg text-foreground">{offerModal.title}</p>
+            </div>
+            <div className="flex flex-col gap-2 pt-2">
+              <Button
+                size="lg"
+                className="w-full gradient-accent text-white font-black"
+                onClick={() => {
+                  setOfferModal((s) => ({ ...s, open: false }));
+                  if (offerModal.type === "promotion") {
+                    const first = publicTrips[0];
+                    if (first) setSelectedPublicTrip(first);
+                  }
+                }}
+              >
+                Aproveitar agora →
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setOfferModal((s) => ({ ...s, open: false }))}>
+                Continuar navegando
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
