@@ -488,6 +488,8 @@ export default function ClientDashboard() {
             type: "coupon",
             title: `${c.code} • ${c.discount_percent}% OFF`,
             subtitle: "Novo cupom de desconto!",
+            offerId: c.id,
+            code: c.code,
           });
           setActiveCoupons((prev) => [c, ...prev]);
         }
