@@ -1183,11 +1183,34 @@ export default function ClientDashboard() {
               <Button
                 size="lg"
                 className="w-full gradient-accent text-white font-black"
-                onClick={() => {
+                onClick={async () => {
+                  const { type, offerId, code } = offerModal;
                   setOfferModal((s) => ({ ...s, open: false }));
-                  if (offerModal.type === "promotion") {
-                    const first = publicTrips[0];
-                    if (first) setSelectedPublicTrip(first);
+                  // Tenta dar destaque ao card correspondente no dashboard
+                  setTimeout(() => {
+                    const elId = type === "promotion" ? `promo-${offerId}` : `coupon-${offerId}`;
+                    const el = document.getElementById(elId);
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      el.classList.add("ring-4", "ring-accent", "ring-offset-2", "ring-offset-background");
+                      setTimeout(() => {
+                        el.classList.remove("ring-4", "ring-accent", "ring-offset-2", "ring-offset-background");
+                      }, 2500);
+                    }
+                  }, 50);
+                  if (type === "coupon" && code) {
+                    try {
+                      await navigator.clipboard.writeText(code);
+                      toast.success(`Cupom ${code} copiado!`);
+                    } catch {}
+                  }
+                  // Abre a primeira viagem disponível para o cliente já aplicar
+                  const first = publicTrips[0];
+                  if (first) {
+                    if (type === "coupon" && code) setCouponInput(code);
+                    setSelectedPublicTrip(first);
+                  } else {
+                    toast.info("Em breve novas viagens disponíveis!");
                   }
                 }}
               >
