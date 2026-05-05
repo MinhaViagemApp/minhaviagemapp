@@ -830,7 +830,7 @@ export default function ClientDashboard() {
           </h2>
           <div className="grid grid-cols-1 gap-6">
             {promotions.map((promo) => (
-              <Card key={promo.id} className="glass animate-fade-in overflow-hidden hover:scale-[1.02] transition-transform border-accent/20 group">
+              <Card key={promo.id} id={`promo-${promo.id}`} className="glass animate-fade-in overflow-hidden hover:scale-[1.02] transition-transform border-accent/20 group scroll-mt-24">
                 <div className="h-44 w-full relative overflow-hidden">
                   <ImageAutoCarousel
                     images={(promo as any).images_list || ((promo as any).preview_image ? [(promo as any).preview_image] : [])}
