@@ -241,9 +241,9 @@ export default function ClientDashboard() {
         });
         const newCoupon = activeCps.find((c: any) => !seenSet.has(`coupon:${c.id}`));
         const offer = newPromo
-          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!" }
+          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!", offerId: newPromo.id, code: undefined }
           : newCoupon
-          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!" }
+          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!", offerId: newCoupon.id, code: newCoupon.code }
           : null;
         // Marca todos como vistos
         const allIds = [
@@ -255,7 +255,7 @@ export default function ClientDashboard() {
           seenOffersRef.current.add(offer.id);
           setTimeout(() => {
             playBusHorn();
-            setOfferModal({ open: true, type: offer.type, title: offer.title, subtitle: offer.subtitle });
+            setOfferModal({ open: true, type: offer.type, title: offer.title, subtitle: offer.subtitle, offerId: offer.offerId, code: offer.code });
           }, 800);
         }
       } catch (e) {
