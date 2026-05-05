@@ -62,7 +62,7 @@ export default function ClientDashboard() {
   const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [selectedPublicTrip, setSelectedPublicTrip] = useState<Trip | null>(null);
   const [adminPhone, setAdminPhone] = useState("");
-  const [offerModal, setOfferModal] = useState<{ open: boolean; type: "promotion" | "coupon"; title: string; subtitle: string }>({ open: false, type: "promotion", title: "", subtitle: "" });
+  const [offerModal, setOfferModal] = useState<{ open: boolean; type: "promotion" | "coupon"; title: string; subtitle: string; offerId?: string; code?: string }>({ open: false, type: "promotion", title: "", subtitle: "" });
   const seenOffersRef = useRef<Set<string>>(new Set());
 
   const [bookingForm, setBookingForm] = useState({
