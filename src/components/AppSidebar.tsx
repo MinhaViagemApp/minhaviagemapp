@@ -41,6 +41,7 @@ const clientItems = [
   { title: "Minhas Viagens", url: "/client/my-trips", icon: MapPinned },
   { title: "Pagamentos", url: "/client/payments", icon: CreditCard },
   { title: "Promoções", url: "/client/promotions", icon: Tag },
+  { title: "Cupons", url: "/client/coupons", icon: Tag },
   { title: "Notificações", url: "/client/notifications", icon: Bell },
 ];
 

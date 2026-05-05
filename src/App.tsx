@@ -20,6 +20,7 @@ import AdminCoupons from "./pages/admin/Coupons";
 import ClientDashboard from "./pages/client/Dashboard";
 import ClientPayments from "./pages/client/Payments";
 import ClientPromotions from "./pages/client/Promotions";
+import ClientCoupons from "./pages/client/Coupons";
 import ClientNotifications from "./pages/client/Notifications";
 import ClientMyTrips from "./pages/client/MyTrips";
 import CompanyProfile from "./pages/CompanyProfile";
@@ -55,6 +56,7 @@ const App = () => (
               <Route path="my-trips" element={<ClientMyTrips />} />
               <Route path="payments" element={<ClientPayments />} />
               <Route path="promotions" element={<ClientPromotions />} />
+              <Route path="coupons" element={<ClientCoupons />} />
               <Route path="notifications" element={<ClientNotifications />} />
             </Route>
 

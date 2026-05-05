@@ -12,7 +12,7 @@ import { differenceInMonths, parseISO, startOfMonth } from "date-fns";
 import { BusSeatPicker } from "@/components/admin/BusSeatPicker";
 import { mcpService } from "@/services/mcpService";
 import { celebrateApproval } from "@/lib/celebrate";
-import { playBusHorn } from "@/lib/busHorn";
+import { playBusHorn, playBusHornFromGesture } from "@/lib/busHorn";
 import { computePrice, validateCoupon, type ValidatedCoupon } from "@/lib/pricing";
 import { ImageAutoCarousel } from "@/components/ImageAutoCarousel";
 import { 
@@ -1175,35 +1175,19 @@ export default function ClientDashboard() {
               <Button
                 size="lg"
                 className="w-full gradient-accent text-white font-black"
-                onClick={async () => {
-                  const { type, offerId, code } = offerModal;
+                onClick={() => {
+                  // Garante que o som toque imediatamente dentro do gesto do usuário
+                  playBusHornFromGesture();
+                  const { type, code } = offerModal;
                   setOfferModal((s) => ({ ...s, open: false }));
-                  // Tenta dar destaque ao card correspondente no dashboard
-                  setTimeout(() => {
-                    const elId = type === "promotion" ? `promo-${offerId}` : `coupon-${offerId}`;
-                    const el = document.getElementById(elId);
-                    if (el) {
-                      el.scrollIntoView({ behavior: "smooth", block: "center" });
-                      el.classList.add("ring-4", "ring-accent", "ring-offset-2", "ring-offset-background");
-                      setTimeout(() => {
-                        el.classList.remove("ring-4", "ring-accent", "ring-offset-2", "ring-offset-background");
-                      }, 2500);
-                    }
-                  }, 50);
                   if (type === "coupon" && code) {
-                    try {
-                      await navigator.clipboard.writeText(code);
-                      toast.success(`Cupom ${code} copiado!`);
-                    } catch {}
+                    navigator.clipboard?.writeText(code).then(
+                      () => toast.success(`Cupom ${code} copiado!`),
+                      () => {}
+                    );
                   }
-                  // Abre a primeira viagem disponível para o cliente já aplicar
-                  const first = publicTrips[0];
-                  if (first) {
-                    if (type === "coupon" && code) setCouponInput(code);
-                    setSelectedPublicTrip(first);
-                  } else {
-                    toast.info("Em breve novas viagens disponíveis!");
-                  }
+                  // Redireciona para a aba correta (cupons ou promoções)
+                  navigate(type === "coupon" ? "/client/coupons" : "/client/promotions");
                 }}
               >
                 Aproveitar agora →
