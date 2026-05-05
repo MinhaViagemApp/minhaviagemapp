@@ -228,29 +228,21 @@ export default function ClientDashboard() {
         return true;
       }));
 
-      // Detecta novas promoções/cupons (vs localStorage) e dispara buzina + popup
+      // A cada login/entrada no dashboard, se houver promoção ou cupom ativos,
+      // dispara buzina + popup para maximizar a chance do cliente aproveitar.
       try {
-        const SEEN_KEY = "client-offers-seen";
-        const seen: string[] = JSON.parse(localStorage.getItem(SEEN_KEY) || "[]");
-        const seenSet = new Set(seen);
-        const newPromo = (promos || []).find((p: any) => !seenSet.has(`promo:${p.id}`));
         const activeCps = (cps || []).filter((c: any) => {
           if (c.expires_at && new Date(c.expires_at) < new Date()) return false;
           if (c.usage_limit && c.usage_count >= c.usage_limit) return false;
           return true;
         });
-        const newCoupon = activeCps.find((c: any) => !seenSet.has(`coupon:${c.id}`));
-        const offer = newPromo
-          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!", offerId: newPromo.id, code: undefined }
-          : newCoupon
-          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!", offerId: newCoupon.id, code: newCoupon.code }
+        const firstPromo = (promos || [])[0];
+        const firstCoupon = activeCps[0];
+        const offer = firstPromo
+          ? { type: "promotion" as const, id: `promo:${firstPromo.id}`, title: firstPromo.title, subtitle: "Oferta especial disponível!", offerId: firstPromo.id, code: undefined as string | undefined }
+          : firstCoupon
+          ? { type: "coupon" as const, id: `coupon:${firstCoupon.id}`, title: `${firstCoupon.code} • ${firstCoupon.discount_percent}% OFF`, subtitle: "Cupom de desconto ativo!", offerId: firstCoupon.id, code: firstCoupon.code as string | undefined }
           : null;
-        // Marca todos como vistos
-        const allIds = [
-          ...((promos || []).map((p: any) => `promo:${p.id}`)),
-          ...activeCps.map((c: any) => `coupon:${c.id}`),
-        ];
-        localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, ...allIds]))));
         if (offer && !seenOffersRef.current.has(offer.id)) {
           seenOffersRef.current.add(offer.id);
           setTimeout(() => {
