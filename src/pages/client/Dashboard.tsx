@@ -62,7 +62,7 @@ export default function ClientDashboard() {
   const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
   const [selectedPublicTrip, setSelectedPublicTrip] = useState<Trip | null>(null);
   const [adminPhone, setAdminPhone] = useState("");
-  const [offerModal, setOfferModal] = useState<{ open: boolean; type: "promotion" | "coupon"; title: string; subtitle: string }>({ open: false, type: "promotion", title: "", subtitle: "" });
+  const [offerModal, setOfferModal] = useState<{ open: boolean; type: "promotion" | "coupon"; title: string; subtitle: string; offerId?: string; code?: string }>({ open: false, type: "promotion", title: "", subtitle: "" });
   const seenOffersRef = useRef<Set<string>>(new Set());
 
   const [bookingForm, setBookingForm] = useState({
@@ -241,9 +241,9 @@ export default function ClientDashboard() {
         });
         const newCoupon = activeCps.find((c: any) => !seenSet.has(`coupon:${c.id}`));
         const offer = newPromo
-          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!" }
+          ? { type: "promotion" as const, id: `promo:${newPromo.id}`, title: newPromo.title, subtitle: "Nova promoção disponível!", offerId: newPromo.id, code: undefined }
           : newCoupon
-          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!" }
+          ? { type: "coupon" as const, id: `coupon:${newCoupon.id}`, title: `${newCoupon.code} • ${newCoupon.discount_percent}% OFF`, subtitle: "Novo cupom de desconto!", offerId: newCoupon.id, code: newCoupon.code }
           : null;
         // Marca todos como vistos
         const allIds = [
@@ -255,7 +255,7 @@ export default function ClientDashboard() {
           seenOffersRef.current.add(offer.id);
           setTimeout(() => {
             playBusHorn();
-            setOfferModal({ open: true, type: offer.type, title: offer.title, subtitle: offer.subtitle });
+            setOfferModal({ open: true, type: offer.type, title: offer.title, subtitle: offer.subtitle, offerId: offer.offerId, code: offer.code });
           }, 800);
         }
       } catch (e) {
@@ -464,7 +464,7 @@ export default function ClientDashboard() {
             localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, id]))));
           } catch {}
           playBusHorn();
-          setOfferModal({ open: true, type: "promotion", title: p.title, subtitle: "Nova promoção disponível!" });
+          setOfferModal({ open: true, type: "promotion", title: p.title, subtitle: "Nova promoção disponível!", offerId: p.id });
           setPromotions((prev) => [{ ...p, images_list: [], preview_image: null }, ...prev]);
         }
       )
@@ -488,6 +488,8 @@ export default function ClientDashboard() {
             type: "coupon",
             title: `${c.code} • ${c.discount_percent}% OFF`,
             subtitle: "Novo cupom de desconto!",
+            offerId: c.id,
+            code: c.code,
           });
           setActiveCoupons((prev) => [c, ...prev]);
         }
@@ -828,7 +830,7 @@ export default function ClientDashboard() {
           </h2>
           <div className="grid grid-cols-1 gap-6">
             {promotions.map((promo) => (
-              <Card key={promo.id} className="glass animate-fade-in overflow-hidden hover:scale-[1.02] transition-transform border-accent/20 group">
+              <Card key={promo.id} id={`promo-${promo.id}`} className="glass animate-fade-in overflow-hidden hover:scale-[1.02] transition-transform border-accent/20 group scroll-mt-24">
                 <div className="h-44 w-full relative overflow-hidden">
                   <ImageAutoCarousel
                     images={(promo as any).images_list || ((promo as any).preview_image ? [(promo as any).preview_image] : [])}
@@ -886,7 +888,7 @@ export default function ClientDashboard() {
                   Cupons Ativos
                 </h3>
                 {activeCoupons.map((c) => (
-                  <Card key={c.id} className="glass overflow-hidden border-accent/30 animate-fade-in">
+                  <Card key={c.id} id={`coupon-${c.id}`} className="glass overflow-hidden border-accent/30 animate-fade-in scroll-mt-24">
                     <CardContent className="p-4 flex items-center justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
@@ -1181,11 +1183,34 @@ export default function ClientDashboard() {
               <Button
                 size="lg"
                 className="w-full gradient-accent text-white font-black"
-                onClick={() => {
+                onClick={async () => {
+                  const { type, offerId, code } = offerModal;
                   setOfferModal((s) => ({ ...s, open: false }));
-                  if (offerModal.type === "promotion") {
-                    const first = publicTrips[0];
-                    if (first) setSelectedPublicTrip(first);
+                  // Tenta dar destaque ao card correspondente no dashboard
+                  setTimeout(() => {
+                    const elId = type === "promotion" ? `promo-${offerId}` : `coupon-${offerId}`;
+                    const el = document.getElementById(elId);
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "center" });
+                      el.classList.add("ring-4", "ring-accent", "ring-offset-2", "ring-offset-background");
+                      setTimeout(() => {
+                        el.classList.remove("ring-4", "ring-accent", "ring-offset-2", "ring-offset-background");
+                      }, 2500);
+                    }
+                  }, 50);
+                  if (type === "coupon" && code) {
+                    try {
+                      await navigator.clipboard.writeText(code);
+                      toast.success(`Cupom ${code} copiado!`);
+                    } catch {}
+                  }
+                  // Abre a primeira viagem disponível para o cliente já aplicar
+                  const first = publicTrips[0];
+                  if (first) {
+                    if (type === "coupon" && code) setCouponInput(code);
+                    setSelectedPublicTrip(first);
+                  } else {
+                    toast.info("Em breve novas viagens disponíveis!");
                   }
                 }}
               >
