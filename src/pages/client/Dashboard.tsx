@@ -464,7 +464,7 @@ export default function ClientDashboard() {
             localStorage.setItem(SEEN_KEY, JSON.stringify(Array.from(new Set([...seen, id]))));
           } catch {}
           playBusHorn();
-          setOfferModal({ open: true, type: "promotion", title: p.title, subtitle: "Nova promoção disponível!" });
+          setOfferModal({ open: true, type: "promotion", title: p.title, subtitle: "Nova promoção disponível!", offerId: p.id });
           setPromotions((prev) => [{ ...p, images_list: [], preview_image: null }, ...prev]);
         }
       )
