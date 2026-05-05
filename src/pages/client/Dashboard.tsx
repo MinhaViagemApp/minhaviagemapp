@@ -888,7 +888,7 @@ export default function ClientDashboard() {
                   Cupons Ativos
                 </h3>
                 {activeCoupons.map((c) => (
-                  <Card key={c.id} className="glass overflow-hidden border-accent/30 animate-fade-in">
+                  <Card key={c.id} id={`coupon-${c.id}`} className="glass overflow-hidden border-accent/30 animate-fade-in scroll-mt-24">
                     <CardContent className="p-4 flex items-center justify-between gap-3">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
