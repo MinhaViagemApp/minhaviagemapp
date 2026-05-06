@@ -128,26 +128,20 @@ function fallbackPlay() {
   } catch {}
 }
 
-/** Toca a buzina duas vezes seguidas. */
+/** Toca a buzina (arquivo já contém 2 buzinadas). */
 export async function playBusHorn() {
   unlock();
-  const ok1 = await playOnce(0.85, 0);
-  const ok2 = await playOnce(0.85, 1.3);
-  if (!ok1 && !ok2) {
-    fallbackPlay();
-  }
+  const ok = await playOnce(0.9, 0);
+  if (!ok) fallbackPlay();
 }
 
 /** Versão síncrona — usar dentro de handlers de clique para garantir playback. */
 export function playBusHornFromGesture() {
   unlock();
-  // Tenta Web Audio primeiro (já dentro do gesto)
-  void playOnce(0.85, 0);
-  void playOnce(0.85, 1.3);
-  // Em paralelo, dispara fallback HTMLAudio também (alguns Safari preferem)
+  void playOnce(0.9, 0);
   try {
     const a = new Audio(SOUND_URL);
-    a.volume = 0.85;
+    a.volume = 0.9;
     a.play().catch(() => {});
   } catch {}
 }
