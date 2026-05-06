@@ -9,7 +9,7 @@
  *    callbacks assíncronos (realtime, useEffect, etc.).
  */
 
-const SOUND_URL = "/sounds/bus-horn.mp3";
+const SOUND_URL = "/sounds/bus-horn.mp3?v=3";
 
 let audioCtx: AudioContext | null = null;
 let buffer: AudioBuffer | null = null;
