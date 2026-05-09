@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      agency_subscriptions: {
+        Row: {
+          canceled_at: string | null
+          company_id: string
+          created_at: string
+          current_period_end: string | null
+          id: string
+          monthly_amount: number
+          notes: string | null
+          plan: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          canceled_at?: string | null
+          company_id: string
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          monthly_amount?: number
+          notes?: string | null
+          plan?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          canceled_at?: string | null
+          company_id?: string
+          created_at?: string
+          current_period_end?: string | null
+          id?: string
+          monthly_amount?: number
+          notes?: string | null
+          plan?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       bookings: {
         Row: {
           client_id: string
@@ -323,6 +365,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      link_clicks: {
+        Row: {
+          campaign: string | null
+          created_at: string
+          id: string
+          ip_hash: string | null
+          path: string | null
+          referrer: string | null
+          source: string
+          user_agent: string | null
+        }
+        Insert: {
+          campaign?: string | null
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          path?: string | null
+          referrer?: string | null
+          source?: string
+          user_agent?: string | null
+        }
+        Update: {
+          campaign?: string | null
+          created_at?: string
+          id?: string
+          ip_hash?: string | null
+          path?: string | null
+          referrer?: string | null
+          source?: string
+          user_agent?: string | null
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -781,6 +856,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_superadmin: { Args: never; Returns: boolean }
       prereserve_bus_seat: {
         Args: {
           _passenger_name: string
