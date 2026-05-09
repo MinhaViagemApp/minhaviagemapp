@@ -36,7 +36,8 @@ export default function AppLayout({ requiredRole }: AppLayoutProps) {
   }
 
   if (requiredRole && userRole !== requiredRole) {
-    return <Navigate to={userRole === "admin" ? "/admin" : "/client"} replace />;
+    const dest = userRole === "superadmin" ? "/superadmin" : userRole === "admin" ? "/admin" : "/client";
+    return <Navigate to={dest} replace />;
   }
 
   return (
