@@ -24,12 +24,6 @@ import ClientCoupons from "./pages/client/Coupons";
 import ClientNotifications from "./pages/client/Notifications";
 import ClientMyTrips from "./pages/client/MyTrips";
 import CompanyProfile from "./pages/CompanyProfile";
-import SuperAdminLayout from "./layouts/SuperAdminLayout";
-import SuperAdminDashboard from "./pages/superadmin/Dashboard";
-import SuperAdminAgencies from "./pages/superadmin/Agencies";
-import SuperAdminSubscriptions from "./pages/superadmin/Subscriptions";
-import SuperAdminClicks from "./pages/superadmin/Clicks";
-import TrackRedirect from "./pages/TrackRedirect";
 
 const queryClient = new QueryClient();
 
@@ -46,14 +40,6 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/r/:source" element={<TrackRedirect />} />
-
-            <Route path="/superadmin" element={<SuperAdminLayout />}>
-              <Route index element={<SuperAdminDashboard />} />
-              <Route path="agencies" element={<SuperAdminAgencies />} />
-              <Route path="subscriptions" element={<SuperAdminSubscriptions />} />
-              <Route path="clicks" element={<SuperAdminClicks />} />
-            </Route>
 
             <Route path="/admin" element={<AppLayout requiredRole="admin" />}>
               <Route index element={<AdminDashboard />} />

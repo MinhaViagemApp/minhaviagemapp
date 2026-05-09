@@ -14,6 +14,5 @@ export default function Index() {
 
   if (!user) return <Navigate to="/login" replace />;
 
-  const dest = userRole === "superadmin" ? "/superadmin" : userRole === "admin" ? "/admin" : "/client";
-  return <Navigate to={dest} replace />;
+  return <Navigate to={userRole === "admin" ? "/admin" : "/client"} replace />;
 }
