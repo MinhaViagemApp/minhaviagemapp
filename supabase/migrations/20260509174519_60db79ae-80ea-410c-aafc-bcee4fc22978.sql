@@ -1,0 +1,1 @@
+ALTER TABLE public.coupons DROP CONSTRAINT IF EXISTS coupons_company_id_code_key;
