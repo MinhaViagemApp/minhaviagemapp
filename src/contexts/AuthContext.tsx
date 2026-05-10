@@ -30,10 +30,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", userId)
-      .maybeSingle();
+      .eq("user_id", userId);
 
-    return data?.role || null;
+    if (!data || data.length === 0) return null;
+    const roles = data.map((r: any) => r.role);
+    // Prioriza superadmin > admin > cliente
+    if (roles.includes("superadmin")) return "admin";
+    if (roles.includes("admin")) return "admin";
+    return roles[0];
   };
 
   const ensureProfileAndRole = async (currentUser: User) => {
